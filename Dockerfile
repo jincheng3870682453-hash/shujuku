@@ -41,7 +41,10 @@ RUN pip install --no-cache-dir -r /app/root_requirements.txt -i https://pypi.tun
 # 复制后端代码
 COPY app.py /app/
 COPY backend/ /app/backend/
-COPY templates/ /app/templates/
+
+# 创建 templates 目录（Flask 初始化需要 template_folder 路径存在，
+# 但实际不使用 Jinja2 渲染，前端由 React SPA 通过 static/ 提供）
+RUN mkdir -p /app/templates
 
 # 从 Stage 1 复制前端构建产物到 static 目录（Flask serve）
 COPY --from=frontend-builder /app/frontend/dist/ /app/static/
