@@ -1,0 +1,760 @@
+/* ================================================================
+   Enterprise Dashboard — 9 种背景质感 CSS 变量体系
+   切换策略：html[data-texture] + html[data-theme] 双属性驱动
+   通过 CSS 变量 + 200ms transition 实现平滑切换，无硬切
+   ================================================================ */
+
+/* ───────────────────────────────────────────────
+   0. 基础变量 & 过渡配置（:root = Glass 默认）
+   ─────────────────────────────────────────────── */
+:root {
+  /* 过渡配置 */
+  --tx-transition-duration: 200ms;
+  --tx-transition-easing: cubic-bezier(0.4, 0, 0.2, 1);
+  --tx-transition: background var(--tx-transition-duration) var(--tx-transition-easing),
+    box-shadow var(--tx-transition-duration) var(--tx-transition-easing),
+    border-color var(--tx-transition-duration) var(--tx-transition-easing),
+    backdrop-filter var(--tx-transition-duration) var(--tx-transition-easing);
+
+  /* 玻璃透明度（可通过 JS 动态调整） */
+  --tx-glass-alpha: 0.55;
+
+  /* ── Glass 默认变量 ── */
+  --tx-body-bg: #0a0a10;
+  --tx-body-gradient: radial-gradient(ellipse 80% 60% at 30% 20%, rgba(120, 80, 255, 0.10) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 70% 70%, rgba(30, 100, 255, 0.08) 0%, transparent 60%);
+  --tx-card-bg: rgba(20, 20, 30, var(--tx-glass-alpha));
+  --tx-card-border: 1px solid rgba(255, 255, 255, 0.06);
+  --tx-card-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  --tx-card-backdrop: blur(16px) saturate(180%);
+  --tx-card-radius: var(--radius-lg, 12px);
+  --tx-input-bg: rgba(255, 255, 255, 0.04);
+  --tx-input-border: 1px solid rgba(255, 255, 255, 0.08);
+  --tx-sider-bg: rgba(12, 12, 18, 0.75);
+  --tx-header-bg: rgba(12, 12, 18, 0.65);
+  --tx-modal-bg: rgba(18, 18, 26, 0.92);
+  --tx-popover-bg: rgba(22, 22, 30, 0.88);
+  --tx-table-row-hover: rgba(255, 255, 255, 0.03);
+  --tx-table-row-alt: rgba(255, 255, 255, 0.015);
+  --tx-neon-glow: none;
+  --tx-gradient-overlay: none;
+  --tx-noise-opacity: 0;
+  --tx-grid-opacity: 0;
+  --tx-scanline-opacity: 0;
+  --tx-paper-texture: none;
+  --tx-brushed-texture: none;
+  --tx-mesh-gradient: none;
+  --tx-btn-glow: 0 0 0 1px rgba(94,106,210,0.3), 0 2px 8px rgba(94,106,210,0.2);
+}
+
+/* ───────────────────────────────────────────────
+   1. 玻璃质感 (Glass) — 默认
+   ─────────────────────────────────────────────── */
+[data-texture="glass"] {
+  --tx-body-bg: #0a0a10;
+  --tx-body-gradient: radial-gradient(ellipse 80% 60% at 30% 20%, rgba(120, 80, 255, 0.10) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 70% 70%, rgba(30, 100, 255, 0.08) 0%, transparent 60%);
+  --tx-card-bg: rgba(20, 20, 30, var(--tx-glass-alpha));
+  --tx-card-border: 1px solid rgba(255, 255, 255, 0.06);
+  --tx-card-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  --tx-card-backdrop: blur(16px) saturate(180%);
+  --tx-input-bg: rgba(255, 255, 255, 0.04);
+  --tx-input-border: 1px solid rgba(255, 255, 255, 0.08);
+  --tx-sider-bg: rgba(12, 12, 18, 0.75);
+  --tx-header-bg: rgba(12, 12, 18, 0.65);
+  --tx-modal-bg: rgba(18, 18, 26, 0.92);
+  --tx-popover-bg: rgba(22, 22, 30, 0.88);
+  --tx-table-row-hover: rgba(255, 255, 255, 0.03);
+  --tx-table-row-alt: rgba(255, 255, 255, 0.015);
+  --tx-neon-glow: none;
+  --tx-gradient-overlay: none;
+  --tx-noise-opacity: 0;
+  --tx-grid-opacity: 0;
+  --tx-scanline-opacity: 0;
+  --tx-paper-texture: none;
+  --tx-brushed-texture: none;
+  --tx-mesh-gradient: none;
+  --tx-btn-glow: 0 0 0 1px rgba(94,106,210,0.3), 0 2px 8px rgba(94,106,210,0.2);
+}
+
+/* ───────────────────────────────────────────────
+   2. 磨砂质感 (Frosted)
+   ─────────────────────────────────────────────── */
+[data-texture="frosted"] {
+  --tx-body-bg: #0F0F13;
+  --tx-body-gradient: none;
+  --tx-card-bg: #1E1E24;
+  --tx-card-border: 1px solid transparent;
+  --tx-card-shadow: none;
+  --tx-card-backdrop: none;
+  --tx-input-bg: #1a1a20;
+  --tx-input-border: 1px solid #2a2a30;
+  --tx-sider-bg: #111116;
+  --tx-header-bg: #111116;
+  --tx-modal-bg: #1E1E24;
+  --tx-popover-bg: #1E1E24;
+  --tx-table-row-hover: rgba(255, 255, 255, 0.03);
+  --tx-table-row-alt: rgba(255, 255, 255, 0.015);
+  --tx-neon-glow: none;
+  --tx-gradient-overlay: none;
+  --tx-noise-opacity: 0.03;
+  --tx-grid-opacity: 0;
+  --tx-scanline-opacity: 0;
+  --tx-paper-texture: none;
+  --tx-brushed-texture: none;
+  --tx-mesh-gradient: none;
+  --tx-btn-glow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* ───────────────────────────────────────────────
+   3. 金属质感 (Metallic)
+   ─────────────────────────────────────────────── */
+[data-texture="metallic"] {
+  --tx-body-bg: #0a0a0a;
+  --tx-body-gradient: none;
+  --tx-card-bg: linear-gradient(135deg, #2a2a2a, #1a1a1a);
+  --tx-card-border: 1px solid transparent;
+  --tx-card-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  --tx-card-backdrop: none;
+  --tx-input-bg: #1c1c1c;
+  --tx-input-border: 1px solid #333;
+  --tx-sider-bg: #0d0d0d;
+  --tx-header-bg: #0d0d0d;
+  --tx-modal-bg: #1a1a1a;
+  --tx-popover-bg: #1a1a1a;
+  --tx-table-row-hover: rgba(255, 255, 255, 0.02);
+  --tx-table-row-alt: rgba(255, 255, 255, 0.01);
+  --tx-neon-glow: none;
+  --tx-gradient-overlay: linear-gradient(180deg, rgba(68, 68, 68, 0.15), rgba(34, 34, 34, 0.15));
+  --tx-noise-opacity: 0;
+  --tx-grid-opacity: 0;
+  --tx-scanline-opacity: 0;
+  --tx-paper-texture: none;
+  --tx-brushed-texture: 1;
+  --tx-mesh-gradient: none;
+  --tx-btn-glow: 0 1px 0 rgba(255,255,255,0.06), 0 2px 6px rgba(0,0,0,0.5);
+}
+
+/* ───────────────────────────────────────────────
+   4. 纸本质感 (Paper) — 亮色
+   ─────────────────────────────────────────────── */
+[data-texture="paper"] {
+  --tx-body-bg: #EFEEE9;
+  --tx-body-gradient: none;
+  --tx-card-bg: #F7F6F3;
+  --tx-card-border: 1px solid #E0DFD9;
+  --tx-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 3px 12px rgba(0, 0, 0, 0.06);
+  --tx-card-backdrop: none;
+  --tx-input-bg: #FFFFFF;
+  --tx-input-border: 1px solid #D5D3CD;
+  --tx-sider-bg: #F0EFEA;
+  --tx-header-bg: #F0EFEA;
+  --tx-modal-bg: #F7F6F3;
+  --tx-popover-bg: #F7F6F3;
+  --tx-table-row-hover: rgba(0, 0, 0, 0.02);
+  --tx-table-row-alt: rgba(0, 0, 0, 0.01);
+  --tx-neon-glow: none;
+  --tx-gradient-overlay: none;
+  --tx-noise-opacity: 0.015;
+  --tx-grid-opacity: 0;
+  --tx-scanline-opacity: 0;
+  --tx-paper-texture: 1;
+  --tx-brushed-texture: none;
+  --tx-mesh-gradient: none;
+  --tx-btn-glow: 0 1px 3px rgba(0,0,0,0.08);
+  /* 纸质需要亮色文字覆盖 */
+  --tx-text-override: #1a1a1a;
+  --tx-text-secondary-override: #6b6b6b;
+}
+
+/* ───────────────────────────────────────────────
+   5. 霓虹质感 (Neon)
+   ─────────────────────────────────────────────── */
+[data-texture="neon"] {
+  --tx-body-bg: #050508;
+  --tx-body-gradient: none;
+  --tx-card-bg: rgba(10, 10, 15, 0.8);
+  --tx-card-border: 1px solid rgba(124, 58, 237, 0.3);
+  --tx-card-shadow: 0 0 15px rgba(124, 58, 237, 0.2);
+  --tx-card-backdrop: none;
+  --tx-input-bg: rgba(124, 58, 237, 0.05);
+  --tx-input-border: 1px solid rgba(124, 58, 237, 0.2);
+  --tx-sider-bg: rgba(5, 5, 8, 0.95);
+  --tx-header-bg: rgba(5, 5, 8, 0.9);
+  --tx-modal-bg: rgba(8, 8, 13, 0.95);
+  --tx-popover-bg: rgba(10, 10, 15, 0.9);
+  --tx-table-row-hover: rgba(124, 58, 237, 0.05);
+  --tx-table-row-alt: rgba(124, 58, 237, 0.02);
+  --tx-neon-glow: 0 0 15px rgba(124, 58, 237, 0.25);
+  --tx-gradient-overlay: none;
+  --tx-noise-opacity: 0;
+  --tx-grid-opacity: 0.06;
+  --tx-scanline-opacity: 0.03;
+  --tx-paper-texture: none;
+  --tx-brushed-texture: none;
+  --tx-mesh-gradient: none;
+  --tx-btn-glow: 0 0 8px rgba(124, 58, 237, 0.5), 0 2px 4px rgba(0,0,0,0.3);
+  /* 霓虹色变量 */
+  --tx-neon-primary: #7C3AED;
+  --tx-neon-secondary: #06B6D4;
+}
+
+/* ───────────────────────────────────────────────
+   6. 液态质感 (Liquid Mesh)
+   ─────────────────────────────────────────────── */
+[data-texture="liquid-mesh"] {
+  --tx-body-bg: #0a0a14;
+  --tx-body-gradient: none;
+  --tx-card-bg: rgba(255, 255, 255, 0.08);
+  --tx-card-border: 1px solid rgba(255, 255, 255, 0.08);
+  --tx-card-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+  --tx-card-backdrop: blur(20px);
+  --tx-input-bg: rgba(255, 255, 255, 0.05);
+  --tx-input-border: 1px solid rgba(255, 255, 255, 0.1);
+  --tx-sider-bg: rgba(10, 10, 20, 0.8);
+  --tx-header-bg: rgba(10, 10, 20, 0.7);
+  --tx-modal-bg: rgba(14, 14, 26, 0.9);
+  --tx-popover-bg: rgba(16, 16, 28, 0.85);
+  --tx-table-row-hover: rgba(255, 255, 255, 0.04);
+  --tx-table-row-alt: rgba(255, 255, 255, 0.02);
+  --tx-neon-glow: none;
+  --tx-gradient-overlay: none;
+  --tx-noise-opacity: 0;
+  --tx-grid-opacity: 0;
+  --tx-scanline-opacity: 0;
+  --tx-paper-texture: none;
+  --tx-brushed-texture: none;
+  --tx-mesh-gradient: 1;
+  --tx-btn-glow: 0 0 0 1px rgba(255,255,255,0.1), 0 2px 8px rgba(255,255,255,0.05);
+}
+
+/* ───────────────────────────────────────────────
+   7. 深度质感 (Depth)
+   ─────────────────────────────────────────────── */
+[data-texture="depth"] {
+  --tx-body-bg: #16161E;
+  --tx-body-gradient: none;
+  --tx-card-bg: #1C1C24;
+  --tx-card-border: 1px solid transparent;
+  --tx-card-shadow: 
+    0 -1px 2px rgba(255, 255, 255, 0.04),
+    0 4px 8px rgba(0, 0, 0, 0.4),
+    0 8px 24px rgba(0, 0, 0, 0.3);
+  --tx-card-backdrop: none;
+  --tx-input-bg: #1E1E28;
+  --tx-input-border: 1px solid #2a2a34;
+  --tx-sider-bg: #12121a;
+  --tx-header-bg: #12121a;
+  --tx-modal-bg: #1C1C24;
+  --tx-popover-bg: #1C1C24;
+  --tx-table-row-hover: rgba(255, 255, 255, 0.03);
+  --tx-table-row-alt: rgba(255, 255, 255, 0.015);
+  --tx-neon-glow: none;
+  --tx-gradient-overlay: none;
+  --tx-noise-opacity: 0;
+  --tx-grid-opacity: 0;
+  --tx-scanline-opacity: 0;
+  --tx-paper-texture: none;
+  --tx-brushed-texture: none;
+  --tx-mesh-gradient: none;
+  --tx-btn-glow: 0 1px 0 rgba(255,255,255,0.04), 0 2px 4px rgba(0,0,0,0.3);
+}
+
+/* ───────────────────────────────────────────────
+   8. 透明质感 (Transparent)
+   ─────────────────────────────────────────────── */
+[data-texture="transparent"] {
+  --tx-body-bg: transparent;
+  --tx-body-gradient: none;
+  --tx-card-bg: transparent;
+  --tx-card-border: 1px solid rgba(255, 255, 255, 0.08);
+  --tx-card-shadow: none;
+  --tx-card-backdrop: none;
+  --tx-input-bg: rgba(255, 255, 255, 0.04);
+  --tx-input-border: 1px solid rgba(255, 255, 255, 0.1);
+  --tx-sider-bg: rgba(0, 0, 0, 0.25);
+  --tx-header-bg: rgba(0, 0, 0, 0.15);
+  --tx-modal-bg: rgba(10, 10, 14, 0.85);
+  --tx-popover-bg: rgba(14, 14, 20, 0.82);
+  --tx-table-row-hover: rgba(255, 255, 255, 0.04);
+  --tx-table-row-alt: rgba(255, 255, 255, 0.015);
+  --tx-neon-glow: none;
+  --tx-gradient-overlay: none;
+  --tx-noise-opacity: 0;
+  --tx-grid-opacity: 0;
+  --tx-scanline-opacity: 0;
+  --tx-paper-texture: none;
+  --tx-brushed-texture: none;
+  --tx-mesh-gradient: none;
+  --tx-btn-glow: none;
+}
+
+/* ───────────────────────────────────────────────
+   9. 极简平面 (Flat)
+   ─────────────────────────────────────────────── */
+[data-texture="flat"] {
+  --tx-body-bg: #0A0A0A;
+  --tx-body-gradient: none;
+  --tx-card-bg: #141414;
+  --tx-card-border: 1px solid #1F1F1F;
+  --tx-card-shadow: none;
+  --tx-card-backdrop: none;
+  --tx-input-bg: #1a1a1a;
+  --tx-input-border: 1px solid #1F1F1F;
+  --tx-sider-bg: #0A0A0A;
+  --tx-header-bg: #0A0A0A;
+  --tx-modal-bg: #141414;
+  --tx-popover-bg: #141414;
+  --tx-table-row-hover: rgba(255, 255, 255, 0.02);
+  --tx-table-row-alt: rgba(255, 255, 255, 0.01);
+  --tx-neon-glow: none;
+  --tx-gradient-overlay: none;
+  --tx-noise-opacity: 0;
+  --tx-grid-opacity: 0;
+  --tx-scanline-opacity: 0;
+  --tx-paper-texture: none;
+  --tx-brushed-texture: none;
+  --tx-mesh-gradient: none;
+  --tx-btn-glow: none;
+}
+
+/* ================================================================
+   全局组件覆写 — 通过 html[data-texture] 提高特异性
+   替代 !important，特异性 0,2,1 覆盖 Ant Design 5 的 0,1,0
+   ================================================================ */
+
+/*
+  全局组件覆写策略：
+  - html[data-texture] 前缀提升特异性至 0,2,1，覆盖 Ant Design 5 的 :where() (0,1,0)
+  - 对于 index.css 中已用 !important 设置的属性（background/border-color），
+    此处同样使用 !important 以确保纹理变量能覆盖默认值
+  - 所有属性都使用 transition，CSS 变量切换时 200ms 平滑过渡，不会"硬切"
+*/
+
+/* ── Body / 页面背景 ── */
+/* 注意：此处不使用 !important，以便 JS 设置的自定义背景图能通过
+   行内 style 接管 body 背景（行内样式优先级高于普通 CSS 规则） */
+html[data-texture] body {
+  background: var(--tx-body-gradient), var(--tx-body-bg);
+  transition: background var(--tx-transition-duration) var(--tx-transition-easing);
+}
+
+/* ── Ant Design Layout ── */
+html[data-texture] .ant-layout {
+  background: transparent !important;
+  transition: var(--tx-transition);
+}
+html[data-texture] .ant-layout-sider {
+  background: var(--tx-sider-bg) !important;
+  backdrop-filter: var(--tx-card-backdrop);
+  -webkit-backdrop-filter: var(--tx-card-backdrop);
+  border-right: var(--tx-card-border);
+  transition: var(--tx-transition);
+}
+html[data-texture] .ant-layout-header {
+  background: var(--tx-header-bg) !important;
+  backdrop-filter: var(--tx-card-backdrop);
+  -webkit-backdrop-filter: var(--tx-card-backdrop);
+  border-bottom: var(--tx-card-border);
+  transition: var(--tx-transition);
+}
+
+/* ── Card ── */
+html[data-texture] .ant-card {
+  background: var(--tx-card-bg) !important;
+  border: var(--tx-card-border) !important;
+  border-radius: var(--tx-card-radius);
+  box-shadow: var(--tx-card-shadow), var(--tx-neon-glow);
+  backdrop-filter: var(--tx-card-backdrop);
+  -webkit-backdrop-filter: var(--tx-card-backdrop);
+  transition: var(--tx-transition);
+}
+html[data-texture] .ant-card-head {
+  background: transparent !important;
+  border-bottom: var(--tx-card-border);
+  transition: var(--tx-transition);
+}
+
+/* ── Modal / Drawer ── */
+html[data-texture] .ant-modal-content {
+  background: var(--tx-modal-bg) !important;
+  backdrop-filter: var(--tx-card-backdrop);
+  -webkit-backdrop-filter: var(--tx-card-backdrop);
+  border: var(--tx-card-border);
+  border-radius: var(--tx-card-radius);
+  transition: var(--tx-transition);
+}
+html[data-texture] .ant-modal-header {
+  background: transparent !important;
+  border-bottom: var(--tx-card-border);
+  transition: var(--tx-transition);
+}
+html[data-texture] .ant-drawer-content {
+  background: var(--tx-modal-bg) !important;
+  backdrop-filter: var(--tx-card-backdrop);
+  -webkit-backdrop-filter: var(--tx-card-backdrop);
+  transition: var(--tx-transition);
+}
+
+/* ── Popover / Dropdown ── */
+html[data-texture] .ant-popover-inner {
+  background: var(--tx-popover-bg) !important;
+  backdrop-filter: var(--tx-card-backdrop);
+  -webkit-backdrop-filter: var(--tx-card-backdrop);
+  border: var(--tx-card-border);
+  border-radius: var(--tx-card-radius);
+  transition: var(--tx-transition);
+}
+html[data-texture] .ant-popconfirm .ant-popover-inner {
+  background: var(--tx-popover-bg) !important;
+  transition: var(--tx-transition);
+}
+html[data-texture] .ant-dropdown-menu {
+  background: var(--tx-popover-bg) !important;
+  backdrop-filter: var(--tx-card-backdrop);
+  -webkit-backdrop-filter: var(--tx-card-backdrop);
+  border: var(--tx-card-border);
+  border-radius: var(--tx-card-radius);
+  transition: var(--tx-transition);
+}
+
+/* ── Select dropdown ── */
+html[data-texture] .ant-select-dropdown {
+  background: var(--tx-popover-bg) !important;
+  backdrop-filter: var(--tx-card-backdrop);
+  -webkit-backdrop-filter: var(--tx-card-backdrop);
+  transition: var(--tx-transition);
+}
+
+/* ── Table ── */
+html[data-texture] .ant-table {
+  background: transparent;
+  transition: var(--tx-transition);
+}
+html[data-texture] .ant-table-thead .ant-table-cell {
+  background: transparent;
+  border-bottom: var(--tx-card-border);
+  transition: var(--tx-transition);
+}
+html[data-texture] .ant-table-tbody .ant-table-row:hover .ant-table-cell {
+  background: var(--tx-table-row-hover);
+  transition: var(--tx-transition);
+}
+html[data-texture] .ant-table-tbody .ant-table-row:nth-child(even) .ant-table-cell {
+  background: var(--tx-table-row-alt);
+}
+html[data-texture] .ant-table-tbody .ant-table-cell {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  transition: var(--tx-transition);
+}
+
+/* ── Input / Select / Picker ── */
+html[data-texture] .ant-input,
+html[data-texture] .ant-input-affix-wrapper,
+html[data-texture] .ant-picker {
+  background: var(--tx-input-bg) !important;
+  border: var(--tx-input-border);
+  border-radius: var(--radius-md, 6px);
+  transition: var(--tx-transition);
+}
+html[data-texture] .ant-input:hover,
+html[data-texture] .ant-input-affix-wrapper:hover,
+html[data-texture] .ant-picker:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+html[data-texture] .ant-select-selector {
+  background: var(--tx-input-bg) !important;
+  border: var(--tx-input-border);
+  border-radius: var(--radius-md, 6px);
+  transition: var(--tx-transition);
+}
+
+/* ── Notification / Message ── */
+html[data-texture] .ant-message .ant-message-notice-content,
+html[data-texture] .ant-notification-notice {
+  background: var(--tx-popover-bg) !important;
+  backdrop-filter: var(--tx-card-backdrop);
+  -webkit-backdrop-filter: var(--tx-card-backdrop);
+  border: var(--tx-card-border);
+  border-radius: var(--tx-card-radius);
+  transition: var(--tx-transition);
+}
+
+/* ── Button ── */
+html[data-texture] .ant-btn-default {
+  background: var(--tx-input-bg);
+  border: var(--tx-input-border);
+  transition: var(--tx-transition);
+}
+html[data-texture] .ant-btn-default:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+/* ── Menu ── */
+html[data-texture] .ant-menu {
+  background: transparent;
+  border-inline-end: none;
+  transition: var(--tx-transition);
+}
+html[data-texture] .ant-menu-sub {
+  background: rgba(0, 0, 0, 0.15);
+}
+html[data-texture] .ant-menu-item-selected {
+  background: var(--brand-accent-dim, rgba(94, 106, 210, 0.12));
+  border-radius: var(--radius-md, 6px);
+}
+
+/* ── Tag / Badge ── */
+html[data-texture] .ant-tag {
+  border: var(--tx-card-border);
+  border-radius: var(--radius-sm, 4px);
+  transition: var(--tx-transition);
+}
+
+/* ── Tabs ── */
+html[data-texture] .ant-tabs-nav {
+  border-bottom: var(--tx-card-border);
+  transition: var(--tx-transition);
+}
+html[data-texture] .ant-tabs-tab {
+  transition: color var(--tx-transition-duration) var(--tx-transition-easing);
+}
+
+/* ── Steps / Timeline / Divider ── */
+html[data-texture] .ant-steps-item-tail::after {
+  background: rgba(255, 255, 255, 0.08);
+}
+html[data-texture] .ant-divider {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+/* ── 纸质主题文字覆盖 ── */
+html[data-texture="paper"] .ant-typography,
+html[data-texture="paper"] .ant-menu-item,
+html[data-texture="paper"] .ant-btn-default {
+  color: var(--tx-text-override, inherit);
+}
+html[data-texture="paper"] .ant-typography.ant-typography-secondary {
+  color: var(--tx-text-secondary-override, inherit);
+}
+html[data-texture="paper"] .ant-input,
+html[data-texture="paper"] .ant-input-affix-wrapper {
+  color: var(--tx-text-override, inherit);
+  background: #FFFFFF;
+  border-color: #D5D3CD;
+}
+html[data-texture="paper"] .ant-btn-default {
+  background: #FFFFFF;
+  border-color: #D5D3CD;
+  color: var(--tx-text-override, inherit);
+}
+
+/* ── 霓虹强调色适配 ── */
+html[data-texture="neon"][data-neon-accent="cyan"] {
+  --tx-neon-glow: 0 0 15px rgba(6, 182, 212, 0.25);
+}
+html[data-texture="neon"][data-neon-accent="cyan"] .ant-card {
+  border-color: rgba(6, 182, 212, 0.3);
+}
+
+/* ================================================================
+   背景纹理效果 — 通过 ::before 伪元素注入
+   ================================================================ */
+
+/* ── 噪点纹理（磨砂 / 纸质共用） ── */
+html[data-texture] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: var(--tx-noise-opacity);
+  transition: opacity var(--tx-transition-duration) var(--tx-transition-easing);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+}
+
+/* ── 纸质纤维纹理 ── */
+html[data-texture="paper"] body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.35;
+  transition: opacity var(--tx-transition-duration) var(--tx-transition-easing);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='paper'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.04' numOctaves='5' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23paper)'/%3E%3C/svg%3E");
+  background-size: 512px 512px;
+}
+
+/* ── 金属拉丝纹理 ── */
+html[data-texture="metallic"] body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.08;
+  transition: opacity var(--tx-transition-duration) var(--tx-transition-easing);
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255, 255, 255, 0.015) 2px,
+    rgba(255, 255, 255, 0.015) 4px
+  );
+}
+
+/* ── 霓虹网格线 ── */
+html[data-texture="neon"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: var(--tx-grid-opacity);
+  transition: opacity var(--tx-transition-duration) var(--tx-transition-easing);
+  background-image:
+    linear-gradient(rgba(124, 58, 237, 0.15) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(124, 58, 237, 0.15) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ── 霓虹扫描线 ── */
+html[data-texture="neon"] body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: var(--tx-scanline-opacity);
+  transition: opacity var(--tx-transition-duration) var(--tx-transition-easing);
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.25) 2px,
+    rgba(0, 0, 0, 0.25) 4px
+  );
+}
+
+/* ── 液态网格流动背景 ── */
+html[data-texture="liquid-mesh"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 30%, rgba(120, 60, 240, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse 60% 50% at 70% 20%, rgba(6, 182, 212, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse 70% 50% at 50% 70%, rgba(236, 72, 153, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse 80% 40% at 80% 60%, rgba(99, 102, 241, 0.08) 0%, transparent 50%);
+  animation: liquid-mesh-drift 20s ease-in-out infinite;
+}
+
+@keyframes liquid-mesh-drift {
+  0%, 100% {
+    background-position: 0% 0%, 0% 0%, 0% 0%, 0% 0%;
+  }
+  25% {
+    background-position: 3% 2%, -2% 3%, 4% -1%, -3% 1%;
+  }
+  50% {
+    background-position: -2% 4%, 3% -1%, -3% 2%, 2% 3%;
+  }
+  75% {
+    background-position: 1% -2%, -1% 4%, 2% 1%, -2% -1%;
+  }
+}
+
+/* ── 玻璃光晕背景 ── */
+html[data-texture="glass"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--tx-body-gradient);
+  transition: opacity var(--tx-transition-duration) var(--tx-transition-easing);
+}
+
+/* ================================================================
+   纹理切换动画
+   ================================================================ */
+
+/* 切换时加 150ms fade */
+html.texture-transitioning body {
+  animation: texture-fade-in 150ms ease-out;
+}
+@keyframes texture-fade-in {
+  from { opacity: 0.97; }
+  to   { opacity: 1; }
+}
+
+/* ================================================================
+   data-theme 别名（同时设置 data-theme 和 data-texture）
+   ================================================================ */
+/* 基础 body 背景 — 针对 data-theme 也生成选择器以确保无缝 */
+html[data-theme] body {
+  background: var(--tx-body-gradient), var(--tx-body-bg);
+}
+
+/* 同 data-texture 的映射 */
+[data-theme="glass"]       { --tx-body-bg: #0a0a10; }
+[data-theme="frosted"]     { --tx-body-bg: #0F0F13; }
+[data-theme="metallic"]    { --tx-body-bg: #0a0a0a; }
+[data-theme="paper"]       { --tx-body-bg: #EFEEE9; }
+[data-theme="neon"]        { --tx-body-bg: #050508; }
+[data-theme="liquid-mesh"] { --tx-body-bg: #0a0a14; }
+[data-theme="depth"]       { --tx-body-bg: #16161E; }
+[data-theme="flat"]        { --tx-body-bg: #0A0A0A; }
+
+/* ================================================================
+   登录页卡片（登录页在 Layout 之外，独立应用纹理变量）
+   ================================================================ */
+.login-card {
+  background: var(--tx-card-bg);
+  border: var(--tx-card-border);
+  box-shadow: var(--tx-card-shadow);
+  backdrop-filter: var(--tx-card-backdrop);
+  -webkit-backdrop-filter: var(--tx-card-backdrop);
+  transition:
+    background var(--tx-transition-duration) var(--tx-transition-easing),
+    border var(--tx-transition-duration) var(--tx-transition-easing),
+    box-shadow var(--tx-transition-duration) var(--tx-transition-easing);
+}
+
+[data-texture="neon"] .login-card {
+  box-shadow: var(--tx-card-shadow), var(--tx-neon-glow);
+}
+
+/* 纸本质感登录页适配（亮色背景需要深色文字） */
+html[data-texture="paper"] .login-card {
+  color: #1A1A17;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 3px 12px rgba(0, 0, 0, 0.08);
+}
+html[data-texture="paper"] .login-card .ant-typography {
+  color: #1A1A17 !important;
+}
+html[data-texture="paper"] .login-card .ant-input {
+  background: #FFFFFF !important;
+  border-color: #C5C4BC !important;
+  color: #1A1A17 !important;
+}
+html[data-texture="paper"] .login-card .ant-input::placeholder {
+  color: #999990 !important;
+}
+html[data-texture="paper"] .login-card .ant-btn-primary {
+  background: #5e6ad2 !important;
+  color: #FFFFFF !important;
+}
+
+/* 霓虹按钮发光覆盖 */
+html[data-texture="neon"] .ant-btn-primary {
+  box-shadow: var(--tx-btn-glow) !important;
+}
+
+html[data-texture="neon"][data-neon-accent="cyan"] {
+  --tx-btn-glow: 0 0 8px rgba(6, 182, 212, 0.5), 0 2px 4px rgba(0,0,0,0.3);
+}

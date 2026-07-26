@@ -1,0 +1,81 @@
+# ============================================================
+# .dockerignore — 排除大体积文件，确保构建上下文 < 100MB
+# ============================================================
+
+# ---- Git ----
+.git
+.gitattributes
+.gitignore
+
+# ---- 前端依赖 & 构建缓存 ----
+frontend/node_modules
+node_modules
+package-lock.json
+
+# ---- Python 缓存 & 虚拟环境 ----
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.venv
+venv
+env
+*.egg
+
+# ---- PyInstaller 打包产物 ----
+build
+dist
+*.spec
+
+# ---- Electron 桌面打包 ----
+electron/node_modules
+electron/release
+electron/dist
+
+# ---- 数据库 & 数据文件 ----
+*.db
+*.sqlite
+*.sqlite3
+data/
+backups/
+
+# ---- 日志文件 ----
+*.log
+flask_error.log
+flask_out.log
+flask_output.log
+
+# ---- IDE & 编辑器 ----
+.codebuddy
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# ---- Docker 相关 ----
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# ---- 文档 ----
+*.md
+*.txt
+!requirements.txt
+
+# ---- 系统文件 ----
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ---- 测试 & 压测 ----
+locustfile.py
+test_*
+*_test.py
+diagnose.py
+check_dbs.py
+fix_columns.py
+
+# ---- 启动脚本 ----
+启动.bat
+desktop.py

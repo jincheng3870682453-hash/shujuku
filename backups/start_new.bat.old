@@ -1,0 +1,154 @@
+@echo off
+chcp 65001 >nul
+title 动态数据登记系统 - 启动器
+
+echo.
+echo  ╔══════════════════════════════════════════╗
+echo  ║    🚀 动态数据登记系统 v2.0               ║
+echo  ║    请选择启动模式                          ║
+echo  ╚══════════════════════════════════════════╝
+echo.
+echo    [1] Web 模式（浏览器访问）
+echo        启动后端 + 前端 → 自动打开浏览器
+echo        前端: http://localhost:5173
+echo        后端: http://localhost:5001
+echo.
+echo    [2] 桌面模式（独立窗口）
+echo        启动后端 → 启动 Electron 桌面应用
+echo        窗口 1400x900，独立运行
+echo.
+echo    [0] 退出
+echo.
+set /p MODE="请输入选项 [1/2/0]（默认 1）: "
+if "%MODE%"=="" set MODE=1
+
+if "%MODE%"=="0" exit /b 0
+if "%MODE%"=="1" goto mode_web
+if "%MODE%"=="2" goto mode_desktop
+echo 无效选项，默认使用 Web 模式
+goto mode_web
+
+:mode_web
+echo.
+echo ═══════════ Web 模式启动 ═══════════
+
+:: 端口检测
+netstat -ano | findstr ":5001 " | findstr "LISTENING" >nul 2>&1
+if %ERRORLEVEL% EQU 0 (
+    echo [ERROR] 端口 5001 已被占用！
+    pause
+    exit /b 1
+)
+
+netstat -ano | findstr ":5173 " | findstr "LISTENING" >nul 2>&1
+if %ERRORLEVEL% EQU 0 (
+    echo [ERROR] 端口 5173 已被占用！
+    pause
+    exit /b 1
+)
+echo [OK] 端口检测通过
+echo.
+
+:: 启动后端
+echo [INFO] 启动 Flask 后端...
+start "Flask Backend" cmd /c "python app.py"
+
+:: 等待后端就绪
+set /a count=0
+:wait_backend_web
+timeout /t 1 /nobreak >nul
+set /a count+=1
+powershell -Command "try { $r = Invoke-WebRequest -Uri 'http://127.0.0.1:5001/api/health' -TimeoutSec 2 -UseBasicParsing; exit 0 } catch { exit 1 }" >nul 2>&1
+if %ERRORLEVEL% EQU 0 (
+    echo [OK] 后端已就绪 ^(%count% 秒^)
+    goto start_frontend_web
+)
+if %count% GEQ 30 goto start_frontend_web
+goto wait_backend_web
+
+:start_frontend_web
+echo.
+echo [INFO] 启动前端 Vite dev server...
+cd /d "%~dp0frontend"
+start "React Frontend" cmd /c "npm run dev"
+cd /d "%~dp0"
+
+:: 等待前端就绪
+set /a count=0
+:wait_frontend_web
+timeout /t 1 /nobreak >nul
+set /a count+=1
+powershell -Command "try { $r = Invoke-WebRequest -Uri 'http://127.0.0.1:5173' -TimeoutSec 2 -UseBasicParsing; exit 0 } catch { exit 1 }" >nul 2>&1
+if %ERRORLEVEL% EQU 0 (
+    echo [OK] 前端已就绪 ^(%count% 秒^)
+    goto open_browser
+)
+if %count% GEQ 20 goto open_browser
+goto wait_frontend_web
+
+:open_browser
+echo.
+echo [INFO] 打开浏览器 http://localhost:5173
+start http://localhost:5173
+goto finish
+
+:mode_desktop
+echo.
+echo ═══════════ 桌面模式启动 ═══════════
+
+:: 端口检测
+netstat -ano | findstr ":5001 " | findstr "LISTENING" >nul 2>&1
+if %ERRORLEVEL% EQU 0 (
+    echo [ERROR] 端口 5001 已被占用！
+    pause
+    exit /b 1
+)
+echo [OK] 端口检测通过
+echo.
+
+:: 启动后端
+echo [INFO] 启动 Flask 后端...
+start "Flask Backend" cmd /c "python app.py"
+
+:: 等待后端就绪
+set /a count=0
+:wait_backend_desk
+timeout /t 1 /nobreak >nul
+set /a count+=1
+powershell -Command "try { $r = Invoke-WebRequest -Uri 'http://127.0.0.1:5001/api/health' -TimeoutSec 2 -UseBasicParsing; exit 0 } catch { exit 1 }" >nul 2>&1
+if %ERRORLEVEL% EQU 0 (
+    echo [OK] 后端已就绪 ^(%count% 秒^)
+    goto start_electron
+)
+if %count% GEQ 30 goto start_electron
+goto wait_backend_desk
+
+:start_electron
+echo.
+echo [INFO] 编译 Electron TypeScript...
+cd /d "%~dp0electron"
+call npx tsc -p tsconfig.json 2>nul
+if %ERRORLEVEL% NEQ 0 (
+    echo [WARN] TypeScript 编译有警告，继续启动...
+)
+
+echo [INFO] 启动 Electron 桌面应用...
+start "Electron App" cmd /c "npx electron dist/main.js"
+cd /d "%~dp0"
+
+echo.
+echo [INFO] Electron 窗口即将打开（1400x900）...
+echo [INFO] 关闭 Electron 窗口时自动终止后端进程
+goto finish
+
+:finish
+echo.
+echo  ╔══════════════════════════════════════════╗
+echo  ║  ✅ 系统启动完成！                        ║
+echo  ║                                          ║
+echo  ║  预设账户: boss / hr / employee           ║
+echo  ║  密码均为: 123456                         ║
+echo  ╚══════════════════════════════════════════╝
+echo.
+echo  按任意键退出此窗口（不影响已启动的服务）
+pause >nul

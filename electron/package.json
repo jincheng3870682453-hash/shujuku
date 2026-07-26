@@ -1,0 +1,19 @@
+{
+  "name": "dynamic-registry-electron",
+  "version": "1.0.0",
+  "description": "动态数据登记系统 - Electron 桌面壳",
+  "main": "dist/main.js",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "watch": "tsc -p tsconfig.json -w",
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "electron": "^28.3.3",
+    "electron-builder": "^24.9.1",
+    "typescript": "^5.3.3"
+  }
+}

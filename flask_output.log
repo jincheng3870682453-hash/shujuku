@@ -1,0 +1,92 @@
+[INFO] base_path = C:\Users\69215\Desktop\dynamic_registry
+[INFO] templates 目录: C:\Users\69215\Desktop\dynamic_registry\templates  存在: True
+[INFO] static 目录: C:\Users\69215\Desktop\dynamic_registry\static  存在: True
+[INFO] templates 内容: []
+[DB] SQL converted: CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUT... -> CREATE TABLE IF NOT EXISTS users (id INT PRIMARY KEY AUTO_IN...
+[DB] SQL converted: CREATE TABLE IF NOT EXISTS columns_meta (id INTEGER PRIMARY ... -> CREATE TABLE IF NOT EXISTS columns_meta (id INT PRIMARY KEY ...
+[DB] SQL converted: CREATE TABLE IF NOT EXISTS rows_data (id INTEGER PRIMARY KEY... -> CREATE TABLE IF NOT EXISTS rows_data (id INT PRIMARY KEY AUT...
+[DB] SQL converted: CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY... -> CREATE TABLE IF NOT EXISTS audit_log (id INT PRIMARY KEY AUT...
+[DB] SQL converted: CREATE TABLE IF NOT EXISTS pending_changes (id INTEGER PRIMA... -> CREATE TABLE IF NOT EXISTS pending_changes (id INT PRIMARY K...
+[DB] SQL converted: CREATE TABLE IF NOT EXISTS operations_log (id INTEGER PRIMAR... -> CREATE TABLE IF NOT EXISTS operations_log (id INT PRIMARY KE...
+[DB] SQL converted: CREATE TABLE IF NOT EXISTS backups (id INTEGER PRIMARY KEY A... -> CREATE TABLE IF NOT EXISTS backups (id INT PRIMARY KEY AUTO_...
+[INIT] pending_changes 表修复完成，现有列: ['change_type', 'column_name', 'created_at', 'id', 'new_value', 'old_value', 'requested_by', 'review_comment', 'reviewed_at', 'reviewed_by', 'row_id', 'status']
+ERROR:app:Exception on /api/audit [GET]
+Traceback (most recent call last):
+  File "C:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 644, in fetch_one
+    cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1248, 'Every derived table must have its own alias')
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "C:\Users\69215\Desktop\dynamic_registry\app.py", line 884, in api_audit_list
+    total = (db.fetch_one(count_sql, tuple(params)) or {}).get('cnt', 0)
+  File "C:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 655, in fetch_one
+    raise DatabaseError(f"MySQL 查询失败: {e}", e)
+backend.db_adapter.DatabaseError: MySQL 查询失败: (1248, 'Every derived table must have its own alias')
+ERROR:app:Exception on /api/audit [GET]
+Traceback (most recent call last):
+  File "C:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 644, in fetch_one
+    cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1248, 'Every derived table must have its own alias')
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "C:\Users\69215\Desktop\dynamic_registry\app.py", line 884, in api_audit_list
+    total = (db.fetch_one(count_sql, tuple(params)) or {}).get('cnt', 0)
+  File "C:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 655, in fetch_one
+    raise DatabaseError(f"MySQL 查询失败: {e}", e)
+backend.db_adapter.DatabaseError: MySQL 查询失败: (1248, 'Every derived table must have its own alias')

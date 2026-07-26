@@ -1,0 +1,8 @@
+flask>=2.3,<4.0
+flask-cors>=4.0
+openpyxl>=3.1
+pyinstaller>=6.0
+pywebview>=5.0
+waitress>=2.1
+gevent>=23.0
+locust>=2.20

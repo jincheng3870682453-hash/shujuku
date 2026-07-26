@@ -1,0 +1,63 @@
+appId: com.dynamic-registry.app
+productName: 动态数据登记系统
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - "dist/**/*"
+  - "node_modules/**/*"
+  - "package.json"
+
+extraResources:
+  - from: "../app.py"
+    to: "app.py"
+  - from: "../backend/"
+    to: "backend/"
+    filter:
+      - "**/*.py"
+      - "**/*.sql"
+      - "**/requirements.txt"
+  - from: "../frontend/dist/"
+    to: "static/"
+  - from: "../icon.ico"
+    to: "icon.ico"
+
+asarUnpack:
+  - "backend/**/*"
+
+# ───── Windows NSIS ─────
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: ../icon.ico
+  publisherName: Dynamic Registry
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: 动态数据登记系统
+  uninstallDisplayName: 动态数据登记系统
+
+# ───── macOS ─────
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  icon: build/icon.icns
+  category: public.app-category.productivity
+
+# ───── Linux ─────
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+  icon: build/icon.png
+  category: Utility

@@ -1,0 +1,104 @@
+name: Docker 构建并推送到 GHCR
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      # --------------------------------------------------
+      # Step 1: 检出代码
+      # --------------------------------------------------
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      # --------------------------------------------------
+      # Step 2: 设置 Docker Buildx（多平台构建支持）
+      # --------------------------------------------------
+      - name: 设置 Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # --------------------------------------------------
+      # Step 3: 登录 GitHub Container Registry
+      # --------------------------------------------------
+      - name: 登录 GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # --------------------------------------------------
+      # Step 4: 提取镜像元数据（标签、注解）
+      # --------------------------------------------------
+      - name: 提取 Docker 元数据
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # 推送到 main/master 时打 latest 标签
+            type=raw,value=latest,enable={{is_default_branch}}
+            # Git tag 版本号
+            type=ref,event=tag
+            # 分支名
+            type=ref,event=branch
+            # PR 号
+            type=ref,event=pr
+            # 短 commit SHA
+            type=sha,prefix={{branch}}-,format=short
+          labels: |
+            org.opencontainers.image.title=动态数据登记系统
+            org.opencontainers.image.description=动态数据登记系统 - Docker 镜像
+            org.opencontainers.image.vendor=${{ github.repository_owner }}
+
+      # --------------------------------------------------
+      # Step 5: 构建并推送 Docker 镜像（带缓存）
+      # --------------------------------------------------
+      - name: 构建并推送
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64
+          # ---- 缓存策略 ----
+          # cache-from: 从上一次的 GHCR 镜像和 GitHub Actions Cache 恢复缓存
+          # cache-to:  将本次构建的层缓存写入 GitHub Actions Cache（mode=max 缓存所有中间层）
+          cache-from: |
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            type=gha,scope=buildkit
+          cache-to: |
+            type=gha,scope=buildkit,mode=max
+
+      # --------------------------------------------------
+      # Step 6: 构建摘要
+      # --------------------------------------------------
+      - name: 镜像摘要
+        run: |
+          echo "📦 镜像已推送到:"
+          echo "${{ steps.meta.outputs.tags }}" | sed 's/\n/\n  /g'
+          echo ""
+          echo "🔗 拉取命令:"
+          echo "  docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"

@@ -1,0 +1,11 @@
+electron/release/ 
+electron/node_modules/ 
+*.exe 
+*.dmg 
+*.pkg 
+*.zip 
+*.tar.gz 
+node_modules/ 
+.env 
+dist/ 
+build/ 

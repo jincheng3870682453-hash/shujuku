@@ -1,0 +1,1320 @@
+ERROR:app:Exception on /api/rows [GET]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 587, in fetch_all
+    cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 572, in api_list_rows
+    rows = db.fetch_all(f"SELECT id, {col_names} FROM rows_data ORDER BY id DESC LIMIT ? OFFSET ?", (page_size, offset))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 598, in fetch_all
+    raise DatabaseError(f"MySQL ≤È—Ø ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ≤È—Ø ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [GET]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 587, in fetch_all
+    cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 572, in api_list_rows
+    rows = db.fetch_all(f"SELECT id, {col_names} FROM rows_data ORDER BY id DESC LIMIT ? OFFSET ?", (page_size, offset))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 598, in fetch_all
+    raise DatabaseError(f"MySQL ≤È—Ø ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ≤È—Ø ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [GET]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 587, in fetch_all
+    cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 572, in api_list_rows
+    rows = db.fetch_all(f"SELECT id, {col_names} FROM rows_data ORDER BY id DESC LIMIT ? OFFSET ?", (page_size, offset))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 598, in fetch_all
+    raise DatabaseError(f"MySQL ≤È—Ø ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ≤È—Ø ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [GET]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 587, in fetch_all
+    cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 572, in api_list_rows
+    rows = db.fetch_all(f"SELECT id, {col_names} FROM rows_data ORDER BY id DESC LIMIT ? OFFSET ?", (page_size, offset))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 598, in fetch_all
+    raise DatabaseError(f"MySQL ≤È—Ø ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ≤È—Ø ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [POST]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 529, in execute_query
+    affected = cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 602, in api_add_row
+    db.execute_query(f"INSERT INTO rows_data ({', '.join(col_names)}) VALUES ({', '.join('?' for _ in col_names)})", tuple(values))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 552, in execute_query
+    raise DatabaseError(f"MySQL ÷¥–– ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ÷¥–– ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [POST]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 529, in execute_query
+    affected = cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 602, in api_add_row
+    db.execute_query(f"INSERT INTO rows_data ({', '.join(col_names)}) VALUES ({', '.join('?' for _ in col_names)})", tuple(values))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 552, in execute_query
+    raise DatabaseError(f"MySQL ÷¥–– ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ÷¥–– ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [POST]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 529, in execute_query
+    affected = cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 602, in api_add_row
+    db.execute_query(f"INSERT INTO rows_data ({', '.join(col_names)}) VALUES ({', '.join('?' for _ in col_names)})", tuple(values))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 552, in execute_query
+    raise DatabaseError(f"MySQL ÷¥–– ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ÷¥–– ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [GET]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 587, in fetch_all
+    cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 572, in api_list_rows
+    rows = db.fetch_all(f"SELECT id, {col_names} FROM rows_data ORDER BY id DESC LIMIT ? OFFSET ?", (page_size, offset))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 598, in fetch_all
+    raise DatabaseError(f"MySQL ≤È—Ø ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ≤È—Ø ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [GET]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 587, in fetch_all
+    cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 572, in api_list_rows
+    rows = db.fetch_all(f"SELECT id, {col_names} FROM rows_data ORDER BY id DESC LIMIT ? OFFSET ?", (page_size, offset))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 598, in fetch_all
+    raise DatabaseError(f"MySQL ≤È—Ø ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ≤È—Ø ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [GET]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 587, in fetch_all
+    cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 572, in api_list_rows
+    rows = db.fetch_all(f"SELECT id, {col_names} FROM rows_data ORDER BY id DESC LIMIT ? OFFSET ?", (page_size, offset))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 598, in fetch_all
+    raise DatabaseError(f"MySQL ≤È—Ø ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ≤È—Ø ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [GET]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 587, in fetch_all
+    cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 572, in api_list_rows
+    rows = db.fetch_all(f"SELECT id, {col_names} FROM rows_data ORDER BY id DESC LIMIT ? OFFSET ?", (page_size, offset))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 598, in fetch_all
+    raise DatabaseError(f"MySQL ≤È—Ø ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ≤È—Ø ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [POST]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 529, in execute_query
+    affected = cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 602, in api_add_row
+    db.execute_query(f"INSERT INTO rows_data ({', '.join(col_names)}) VALUES ({', '.join('?' for _ in col_names)})", tuple(values))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 552, in execute_query
+    raise DatabaseError(f"MySQL ÷¥–– ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ÷¥–– ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [POST]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 529, in execute_query
+    affected = cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 602, in api_add_row
+    db.execute_query(f"INSERT INTO rows_data ({', '.join(col_names)}) VALUES ({', '.join('?' for _ in col_names)})", tuple(values))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 552, in execute_query
+    raise DatabaseError(f"MySQL ÷¥–– ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ÷¥–– ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [POST]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 529, in execute_query
+    affected = cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 602, in api_add_row
+    db.execute_query(f"INSERT INTO rows_data ({', '.join(col_names)}) VALUES ({', '.join('?' for _ in col_names)})", tuple(values))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 552, in execute_query
+    raise DatabaseError(f"MySQL ÷¥–– ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ÷¥–– ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [GET]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 587, in fetch_all
+    cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 572, in api_list_rows
+    rows = db.fetch_all(f"SELECT id, {col_names} FROM rows_data ORDER BY id DESC LIMIT ? OFFSET ?", (page_size, offset))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 598, in fetch_all
+    raise DatabaseError(f"MySQL ≤È—Ø ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ≤È—Ø ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [GET]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 587, in fetch_all
+    cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 572, in api_list_rows
+    rows = db.fetch_all(f"SELECT id, {col_names} FROM rows_data ORDER BY id DESC LIMIT ? OFFSET ?", (page_size, offset))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 598, in fetch_all
+    raise DatabaseError(f"MySQL ≤È—Ø ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ≤È—Ø ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [POST]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 529, in execute_query
+    affected = cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 602, in api_add_row
+    db.execute_query(f"INSERT INTO rows_data ({', '.join(col_names)}) VALUES ({', '.join('?' for _ in col_names)})", tuple(values))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 552, in execute_query
+    raise DatabaseError(f"MySQL ÷¥–– ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ÷¥–– ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [POST]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 529, in execute_query
+    affected = cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 602, in api_add_row
+    db.execute_query(f"INSERT INTO rows_data ({', '.join(col_names)}) VALUES ({', '.join('?' for _ in col_names)})", tuple(values))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 552, in execute_query
+    raise DatabaseError(f"MySQL ÷¥–– ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ÷¥–– ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [POST]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 529, in execute_query
+    affected = cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 602, in api_add_row
+    db.execute_query(f"INSERT INTO rows_data ({', '.join(col_names)}) VALUES ({', '.join('?' for _ in col_names)})", tuple(values))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 552, in execute_query
+    raise DatabaseError(f"MySQL ÷¥–– ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ÷¥–– ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [GET]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 587, in fetch_all
+    cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 572, in api_list_rows
+    rows = db.fetch_all(f"SELECT id, {col_names} FROM rows_data ORDER BY id DESC LIMIT ? OFFSET ?", (page_size, offset))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 598, in fetch_all
+    raise DatabaseError(f"MySQL ≤È—Ø ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ≤È—Ø ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [GET]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 587, in fetch_all
+    cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 572, in api_list_rows
+    rows = db.fetch_all(f"SELECT id, {col_names} FROM rows_data ORDER BY id DESC LIMIT ? OFFSET ?", (page_size, offset))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 598, in fetch_all
+    raise DatabaseError(f"MySQL ≤È—Ø ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ≤È—Ø ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [GET]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 587, in fetch_all
+    cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 572, in api_list_rows
+    rows = db.fetch_all(f"SELECT id, {col_names} FROM rows_data ORDER BY id DESC LIMIT ? OFFSET ?", (page_size, offset))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 598, in fetch_all
+    raise DatabaseError(f"MySQL ≤È—Ø ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ≤È—Ø ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [POST]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 529, in execute_query
+    affected = cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 602, in api_add_row
+    db.execute_query(f"INSERT INTO rows_data ({', '.join(col_names)}) VALUES ({', '.join('?' for _ in col_names)})", tuple(values))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 552, in execute_query
+    raise DatabaseError(f"MySQL ÷¥–– ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ÷¥–– ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [POST]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 529, in execute_query
+    affected = cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 602, in api_add_row
+    db.execute_query(f"INSERT INTO rows_data ({', '.join(col_names)}) VALUES ({', '.join('?' for _ in col_names)})", tuple(values))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 552, in execute_query
+    raise DatabaseError(f"MySQL ÷¥–– ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ÷¥–– ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [GET]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 587, in fetch_all
+    cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 572, in api_list_rows
+    rows = db.fetch_all(f"SELECT id, {col_names} FROM rows_data ORDER BY id DESC LIMIT ? OFFSET ?", (page_size, offset))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 598, in fetch_all
+    raise DatabaseError(f"MySQL ≤È—Ø ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ≤È—Ø ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [GET]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 587, in fetch_all
+    cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 572, in api_list_rows
+    rows = db.fetch_all(f"SELECT id, {col_names} FROM rows_data ORDER BY id DESC LIMIT ? OFFSET ?", (page_size, offset))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 598, in fetch_all
+    raise DatabaseError(f"MySQL ≤È—Ø ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ≤È—Ø ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [POST]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 529, in execute_query
+    affected = cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 602, in api_add_row
+    db.execute_query(f"INSERT INTO rows_data ({', '.join(col_names)}) VALUES ({', '.join('?' for _ in col_names)})", tuple(values))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 552, in execute_query
+    raise DatabaseError(f"MySQL ÷¥–– ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ÷¥–– ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [POST]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 529, in execute_query
+    affected = cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 602, in api_add_row
+    db.execute_query(f"INSERT INTO rows_data ({', '.join(col_names)}) VALUES ({', '.join('?' for _ in col_names)})", tuple(values))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 552, in execute_query
+    raise DatabaseError(f"MySQL ÷¥–– ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ÷¥–– ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [POST]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 529, in execute_query
+    affected = cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 602, in api_add_row
+    db.execute_query(f"INSERT INTO rows_data ({', '.join(col_names)}) VALUES ({', '.join('?' for _ in col_names)})", tuple(values))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 552, in execute_query
+    raise DatabaseError(f"MySQL ÷¥–– ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ÷¥–– ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [POST]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 529, in execute_query
+    affected = cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 602, in api_add_row
+    db.execute_query(f"INSERT INTO rows_data ({', '.join(col_names)}) VALUES ({', '.join('?' for _ in col_names)})", tuple(values))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 552, in execute_query
+    raise DatabaseError(f"MySQL ÷¥–– ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ÷¥–– ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [GET]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 587, in fetch_all
+    cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 572, in api_list_rows
+    rows = db.fetch_all(f"SELECT id, {col_names} FROM rows_data ORDER BY id DESC LIMIT ? OFFSET ?", (page_size, offset))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 598, in fetch_all
+    raise DatabaseError(f"MySQL ≤È—Ø ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ≤È—Ø ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [GET]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 587, in fetch_all
+    cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 572, in api_list_rows
+    rows = db.fetch_all(f"SELECT id, {col_names} FROM rows_data ORDER BY id DESC LIMIT ? OFFSET ?", (page_size, offset))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 598, in fetch_all
+    raise DatabaseError(f"MySQL ≤È—Ø ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ≤È—Ø ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
+ERROR:app:Exception on /api/rows [POST]
+Traceback (most recent call last):
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 529, in execute_query
+    affected = cur.execute(converted_sql, params or ())
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 159, in execute
+    result = self._query(query)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\cursors.py", line 330, in _query
+    conn.query(q)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 582, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 847, in _read_query_result
+    result.read()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 1245, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\connections.py", line 803, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\pymysql\err.py", line 154, in raise_mysql_exception
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1054, "Unknown column 'col_0' in 'field list'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\69215\AppData\Local\Programs\Python\Python310\lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "c:\Users\69215\Desktop\dynamic_registry\app.py", line 602, in api_add_row
+    db.execute_query(f"INSERT INTO rows_data ({', '.join(col_names)}) VALUES ({', '.join('?' for _ in col_names)})", tuple(values))
+  File "c:\Users\69215\Desktop\dynamic_registry\backend\db_adapter.py", line 552, in execute_query
+    raise DatabaseError(f"MySQL ÷¥–– ß∞‹: {e}", e)
+backend.db_adapter.DatabaseError: MySQL ÷¥–– ß∞‹: (1054, "Unknown column 'col_0' in 'field list'")
