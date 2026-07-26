@@ -1,6 +1,8 @@
 name: Export Docker Image
+
 on:
   workflow_dispatch:
+
 jobs:
   export:
     runs-on: ubuntu-latest
@@ -11,11 +13,13 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Pull and compress
         run: |
           docker pull ghcr.io/jincheng3870682453-hash/shujuku:latest
           docker save ghcr.io/jincheng3870682453-hash/shujuku:latest | gzip > shujuku.tar.gz
-      - name: Upload
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: shujuku-docker-image
