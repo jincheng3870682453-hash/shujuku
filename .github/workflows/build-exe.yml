@@ -17,10 +17,17 @@ jobs:
         with:
           node-version: 18
 
-      - name: Install dependencies
+      - name: Install and build frontend
+        run: |
+          cd frontend
+          npm install
+          npm run build
+
+      - name: Install and build Electron
         run: |
           cd electron
           npm install
+          npm run build
 
       - name: Build EXE
         run: |
