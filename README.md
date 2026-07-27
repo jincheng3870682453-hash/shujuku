@@ -1,7 +1,7 @@
 # 🔮 动态数据登记系统 · Dynamic Registry
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-4.0-blue?style=for-the-badge" alt="version">
+  <img src="https://img.shields.io/badge/version-4.1-blue?style=for-the-badge" alt="version">
   <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="license">
   <img src="https://img.shields.io/badge/python-3.9+-orange?style=for-the-badge&logo=python" alt="python">
   <img src="https://img.shields.io/badge/react-18-blue?style=for-the-badge&logo=react" alt="react">
@@ -21,7 +21,7 @@
   <a href="#-审核工作流">审核流程</a> ·
   <a href="#-部署方案">部署</a> ·
   <a href="#-性能测试">压测</a> ·
-  <a href="#-v40-更新公告">更新公告</a> ·
+  <a href="#-v41-更新公告">更新公告</a> ·
   <a href="#-完整版本历史">版本历史</a> ·
   <a href="#-用户协议">用户协议</a> ·
   <a href="#-隐私政策">隐私政策</a>
@@ -41,7 +41,7 @@
 - [审核工作流](#-审核工作流)
 - [部署架构](#-部署方案)
 - [性能测试](#-性能测试)
-- [v4.0 更新公告](#-v40-更新公告)
+- [v4.1 更新公告](#-v41-更新公告)
 - [完整版本历史](#-完整版本历史)
 - [用户协议](#-用户协议)
 - [隐私政策](#-隐私政策)
@@ -73,6 +73,7 @@ graph TB
         Audit["✅ 审核中心<br/>待审核队列 + 审批操作"]
         Logs["📝 操作日志<br/>全量记录 + 导出"]
         Users["👥 用户管理<br/>增删改 + 细粒度权限"]
+        AIAnalysis["🤖 AI 分析<br/>多模型对话式数据分析"]
         Backup["💾 备份恢复<br/>一键备份 + 上传恢复"]
         Settings["⚙️ 系统设置<br/>主题 + 数据库引擎切换"]
     end
@@ -138,6 +139,9 @@ graph TB
 | | 自动执行 | 审批通过后自动解析原始操作并执行 |
 | 📈 **统计分析** | ECharts 可视化 | 饼图/柱状图/折线图 |
 | | 按字段统计 | 任意字段自由统计 |
+| 🤖 **AI 分析** | 多模型支持 | DeepSeek / OpenAI / 通义千问 一键切换 |
+| | 对话式分析 | 自然语言提问，智能数据洞察 |
+| | 流式输出 | 实时查看 AI 分析过程 |
 | 🗄️ **数据库** | SQLite + MySQL | 双引擎无缝切换，一行配置 |
 | | 统一适配层 | DatabaseAdapter ABC 抽象，? 占位符统一 |
 | 📦 **导入导出** | Excel 导入 | 智能识别表头，自动创建字段 |
@@ -235,6 +239,7 @@ graph TB
         AuditPage["Audit.tsx<br/>✅ 审核列表<br/>通过/驳回 + 评论"]
         LogsPage["Logs.tsx<br/>📝 操作日志<br/>搜索 + 导出TXT"]
         UsersPage["Users.tsx<br/>👥 用户管理<br/>增删改 + 权限勾选"]
+        AIAnalysis["AIAnalysis.tsx<br/>🤖 AI 数据分析<br/>多模型 + 对话式"]
         BackupPage["Backup.tsx<br/>💾 备份恢复<br/>上传DB + 一键下载"]
         SettingsPage["Settings.tsx<br/>⚙️ 主题 + DB引擎切换<br/>MySQL 连接测试"]
     end
@@ -633,6 +638,8 @@ dynamic_registry/
 │   │   ├── DatabaseAdapter     #    ABC 抽象基类
 │   │   ├── SQLiteAdapter       #    SQLite 实现
 │   │   └── MySQLAdapter        #    MySQL 实现
+│   ├── ai_client.py            # 🤖 AI 多模型客户端（DeepSeek/OpenAI/通义千问）
+│   ├── db_crypto.py            # 🔐 数据加密模块
 │   ├── test_adapter.py         # 🧪 适配器单元测试
 │   └── requirements.txt        # 📦 后端依赖
 │
@@ -650,6 +657,7 @@ dynamic_registry/
 │   │   │   ├── Audit.tsx       #    审核中心
 │   │   │   ├── Logs.tsx        #    操作日志
 │   │   │   ├── Users.tsx       #    用户管理
+│   │   │   ├── AIAnalysis.tsx  #    AI 数据分析
 │   │   │   └── Settings.tsx    #    系统设置
 │   │   ├── stores/             # 🗃️ Zustand 状态管理
 │   │   ├── styles/             # 🎨 紫色渐变主题
@@ -757,8 +765,31 @@ MYSQL_DATABASE=app_db
 | v2.9-rc | 07-22 | 🔧 | 数据表格折叠 + 惯性滑动 |
 | **v3.0** | **07-22** | 🚀 | **正式版：完整功能 + EXE 安装包交付** |
 | **v4.0** | **07-27** | 🚀 | **架构重构 + 压测验证 + 开源发布** |
+| **v4.1** | **07-27** | 🚀 | **AI 数据分析：多模型对话式智能分析** |
 
-> 📊 **迭代统计**：21 个版本 · 15 项新增 · 2 项修复 · 2 项优化 · 4 天完成 MVP → 正式版
+> 📊 **迭代统计**：22 个版本 · 16 项新增 · 2 项修复 · 2 项优化 · 4 天完成 MVP → 正式版
+
+---
+
+## 📢 v4.1 更新公告
+
+> 发布日期：2026 年 7 月 27 日
+
+### 🤖 AI 数据分析
+
+| 功能 | 说明 |
+|:---|:---|
+| 多模型支持 | **DeepSeek V4** / OpenAI GPT-4o / 通义千问 一键切换 |
+| 对话式分析 | 自然语言提问，AI 自动读取数据库并返回智能洞察 |
+| 流式输出 | 实时显示 AI 分析过程，无需等待 |
+| 连接测试 | 一键验证 API Key 和模型连接状态 |
+| 数据安全 | API Key 本地存储，不上传服务器 |
+
+### 🔧 优化
+
+- 前端资源缓存策略优化，解决浏览器缓存导致的 405 报错
+- `.gitignore` 排除 `__pycache__`、`*.pyc`、`*.db` 文件
+- 后端模块化：新增 `backend/ai_client.py`、`backend/db_crypto.py`
 
 ---
 
@@ -844,6 +875,7 @@ MYSQL_DATABASE=app_db
 |:---|:---|:---:|:---|
 | **v3.0** | **07-22** | 🚀 | **正式版**：功能全面、UI 统一、PyInstaller + Inno Setup 打包交付（EXE + 安装包） |
 | **v4.0** | **07-27** | 🚀 | **架构重构**：React + Electron + 双数据库引擎 + Docker 部署 + 压测验证 + GitHub 开源 |
+| **v4.1** | **07-27** | 🚀 | **AI 数据分析**：多模型对话式智能分析（DeepSeek/OpenAI/通义千问） |
 
 ### ⚠️ v2.5-rc 回滚详情
 
@@ -867,19 +899,20 @@ timeline
     07-22 : v2.3~v2.9<br/>修复完善 + 功能优化
           : v3.0 正式版<br/>EXE + 安装包交付
     07-27 : v4.0 架构重构<br/>React + Electron + Docker + 开源
+          : v4.1 AI 数据分析<br/>多模型对话式智能分析
 ```
 
 | 指标 | 数值 |
 |:---|:---:|
-| 总版本数 | **21** |
-| 新增功能 | **15** |
+| 总版本数 | **22** |
+| 新增功能 | **16** |
 | 修复问题 | **2** |
 | 优化改进 | **2** |
 | 回滚操作 | **1** |
 | 开发周期 | 2026-07-19 ~ 2026-07-27（9 天） |
-| 阶段跨度 | alpha → beta → rc → 正式版 → 架构重构 |
+| 阶段跨度 | alpha → beta → rc → 正式版 → 架构重构 → AI 增强 |
 
-> 📅 **最后更新**：2026-07-27 &nbsp;&nbsp;|&nbsp;&nbsp; 🏷️ **当前版本**：v4.0
+> 📅 **最后更新**：2026-07-27 &nbsp;&nbsp;|&nbsp;&nbsp; 🏷️ **当前版本**：v4.1
 
 ---
 

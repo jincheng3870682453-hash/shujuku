@@ -1847,10 +1847,12 @@ def serve_react(path):
         response.headers['Cache-Control'] = 'public, max-age=3600'
         return response
     if path.startswith('assets/') or '.' in path.split('/')[-1]:
-        # 前端资源（JS/CSS）从 Vite 构建目录提供，hash 文件名天然支持长期缓存
-        if os.path.exists(os.path.join(FRONTEND_DIST, path)):
+        # 前端资源（JS/CSS）从 Vite 构建目录提供
+        file_path = os.path.join(FRONTEND_DIST, path)
+        if os.path.exists(file_path):
             response = send_from_directory(FRONTEND_DIST, path)
-            response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+            # 使用 ETag + max-age=0 代替 immutable，确保每次加载都验证版本
+            response.headers['Cache-Control'] = 'public, max-age=0, must-revalidate'
             return response
         # 不加缓存破坏参数，避免找不到真实文件时造成额外问题
         response = send_from_directory(FRONTEND_DIST, 'index.html')
