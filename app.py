@@ -80,6 +80,7 @@ app = Flask(__name__,
             root_path=base_path,
             template_folder=os.path.join(base_path, 'templates'),
             static_folder=os.path.join(base_path, 'static'))
+app.url_map.strict_slashes = False
 
 CORS(app, supports_credentials=True)
 app.config['DATABASE'] = DATABASE_PATH
@@ -277,6 +278,13 @@ def _replace_text_for_mysql(sql: str) -> str:
 
     return sql
 
+# ── 字段类型映射（MySQL 模式）──
+_FIELD_TYPE_MAP = {
+    'text': 'VARCHAR(255)', 'number': 'DOUBLE', 'date': 'VARCHAR(255)',
+    'select': 'VARCHAR(255)', 'boolean': 'TINYINT(1)', 'textarea': 'TEXT', 'file': 'LONGTEXT'
+}
+
+
 def init_db():
     db = get_adapter()
     ts = db.get_current_timestamp_sql()
@@ -321,7 +329,7 @@ def init_db():
                 cn = c['name']
                 if cn not in existing_names:
                     ft = c.get('field_type', 'text')
-                    sql_type = FIELD_TYPE_MAP.get(ft, 'VARCHAR(255)')
+                    sql_type = _FIELD_TYPE_MAP.get(ft, 'VARCHAR(255)')
                     try:
                         db.execute_query(f"ALTER TABLE rows_data ADD COLUMN {cn} {sql_type}")
                         print(f'[INIT] 自动添加缺失列: {cn} ({sql_type})', flush=True)
@@ -330,7 +338,7 @@ def init_db():
                 else:
                     # 已存在的列，检查是否需要修正类型（file 字段需要 LONGTEXT）
                     ft = c.get('field_type', 'text')
-                    expected_type = FIELD_TYPE_MAP.get(ft, 'VARCHAR(255)')
+                    expected_type = _FIELD_TYPE_MAP.get(ft, 'VARCHAR(255)')
                     if ft == 'file' and DB_ENGINE != 'sqlite':
                         try:
                             all_cols = db.get_table_columns('rows_data')
@@ -412,10 +420,7 @@ def sqlite_type(field_type):
     return {'text': 'TEXT', 'number': 'REAL', 'date': 'TEXT', 'select': 'TEXT', 'boolean': 'INTEGER', 'textarea': 'TEXT', 'file': 'TEXT'}.get(field_type, 'TEXT')
 
 # ──────────────────────── 共享数据 ────────────────────────
-FIELD_TYPE_MAP = {
-    'text': 'VARCHAR(255)', 'number': 'DOUBLE', 'date': 'VARCHAR(255)',
-    'select': 'VARCHAR(255)', 'boolean': 'TINYINT(1)', 'textarea': 'TEXT', 'file': 'LONGTEXT'
-}
+FIELD_TYPE_MAP = _FIELD_TYPE_MAP  # 向后兼容的别名
 
 def convert_field_value(raw, field_type: str):
     """统一的值类型转换，供 api_add_row / api_update_row / api_approve / Excel 导入共用。
@@ -1580,18 +1585,289 @@ def test_mysql_connection():
         print(f'[测试连接] MySQL 连接失败: {result["message"]}')
         return jsonify(result), 200
 
+# ──────────────────────── AI 数据分析 API ────────────────────────
+
+@app.route('/api/ai/models', methods=['GET'])
+@app.route('/api/ai/models/', methods=['GET'])
+def get_ai_models():
+    """获取支持的 AI 模型预设列表"""
+    from backend.ai_client import MODEL_PRESETS
+    # 返回预设信息（不包含敏感数据）
+    presets = {}
+    for key, preset in MODEL_PRESETS.items():
+        presets[key] = {
+            "name": preset["name"],
+            "models": preset["models"],
+            "base_url": preset["base_url"],
+            "description": preset["description"],
+        }
+    return jsonify({"success": True, "models": presets})
+
+
+@app.route('/api/ai/test', methods=['POST'])
+@app.route('/api/ai/test/', methods=['POST'])
+def test_ai_connection():
+    """测试 AI 连接"""
+    data = request.get_json() or {}
+    provider = data.get('provider', 'openai')
+    model = data.get('model', 'gpt-4o-mini')
+    api_key = data.get('api_key', '')
+    base_url = data.get('base_url', '')
+
+    if not api_key:
+        return jsonify({'success': False, 'error': '请提供 API Key'}), 400
+
+    try:
+        from backend.ai_client import AIClient
+        client = AIClient(
+            provider=provider,
+            model=model,
+            api_key=api_key,
+            base_url=base_url if base_url else None,
+        )
+        result = client.test_connection()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'测试失败: {str(e)}'}), 200
+
+
+@app.route('/api/ai/analyze', methods=['POST'])
+@app.route('/api/ai/analyze/', methods=['POST'])
+def ai_analyze():
+    """AI 数据分析"""
+    data = request.get_json() or {}
+    provider = data.get('provider', 'openai')
+    model = data.get('model', 'gpt-4.1-mini')
+    api_key = data.get('api_key', '')
+    base_url = data.get('base_url', '')
+    question = data.get('question', '')
+    temperature = data.get('temperature', 0.7)
+
+    if not api_key:
+        return jsonify({'success': False, 'error': '请提供 API Key'}), 400
+
+    try:
+        adapter = get_adapter()
+
+        # ── 1. 列定义（columns_meta 表）──
+        columns = []
+        try:
+            columns = adapter.fetch_all("SELECT * FROM columns_meta ORDER BY position ASC")
+            columns = [dict(c) for c in columns] if columns else []
+        except Exception:
+            pass
+
+        # ── 2. 总行数（rows_data 表）──
+        total_rows = 0
+        try:
+            result = adapter.fetch_one("SELECT COUNT(*) as cnt FROM rows_data")
+            total_rows = result['cnt'] if result else 0
+        except Exception:
+            total_rows = 0
+
+        # ── 3. 字段统计 ──
+        field_stats = []
+        if columns:
+            for col in columns:
+                col_name = col.get('name', '')
+                col_label = col.get('label', col_name)
+                col_type = col.get('field_type', 'text')
+                if not col_name:
+                    continue
+                try:
+                    rows = adapter.fetch_all(
+                        f"SELECT {col_name} as val FROM rows_data LIMIT 1000"
+                    )
+                    if rows:
+                        values = [r['val'] for r in rows if r.get('val') is not None]
+                        stats = {
+                            "总记录数": len(rows),
+                            "有值记录数": len(values),
+                            "空值率": f"{round((1 - len(values) / len(rows)) * 100, 1)}%" if rows else "0%",
+                        }
+                        if col_type in ('number',):
+                            nums = [float(v) for v in values if v is not None]
+                            if nums:
+                                stats["最小值"] = min(nums)
+                                stats["最大值"] = max(nums)
+                                stats["平均值"] = round(sum(nums) / len(nums), 2)
+                        elif col_type in ('select',):
+                            from collections import Counter
+                            counter = Counter([str(v) for v in values])
+                            stats["分布"] = dict(counter.most_common(10))
+                        field_stats.append({
+                            "key": col_name,
+                            "label": col_label,
+                            "type": col_type,
+                            "stats": stats,
+                        })
+                except Exception:
+                    # 字段可能不存在或查询失败，跳过
+                    pass
+
+        # ── 4. 审核统计 ──
+        audit_stats = {}
+        try:
+            pending = adapter.fetch_one("SELECT COUNT(*) as cnt FROM pending_changes WHERE status='待审核'")
+            approved = adapter.fetch_one("SELECT COUNT(*) as cnt FROM pending_changes WHERE status='已通过'")
+            rejected = adapter.fetch_one("SELECT COUNT(*) as cnt FROM pending_changes WHERE status='已驳回'")
+            audit_stats = {
+                "待审核": pending['cnt'] if pending else 0,
+                "已通过": approved['cnt'] if approved else 0,
+                "已驳回": rejected['cnt'] if rejected else 0,
+            }
+        except Exception:
+            pass
+
+        # ── 5. 最近操作日志 ──
+        recent_logs = []
+        try:
+            logs = adapter.fetch_all(
+                "SELECT * FROM operations_log ORDER BY created_at DESC LIMIT 20"
+            )
+            recent_logs = [dict(log) for log in (logs or [])]
+        except Exception:
+            pass
+
+        # ── 6. 用户统计 ──
+        user_stats = {}
+        try:
+            total_users = adapter.fetch_one("SELECT COUNT(*) as cnt FROM users")
+            boss_count = adapter.fetch_one("SELECT COUNT(*) as cnt FROM users WHERE role='boss'")
+            hr_count = adapter.fetch_one("SELECT COUNT(*) as cnt FROM users WHERE role='hr'")
+            employee_count = adapter.fetch_one("SELECT COUNT(*) as cnt FROM users WHERE role='employee'")
+            user_stats = {
+                "总用户数": total_users['cnt'] if total_users else 0,
+                "管理员": boss_count['cnt'] if boss_count else 0,
+                "HR": hr_count['cnt'] if hr_count else 0,
+                "员工": employee_count['cnt'] if employee_count else 0,
+            }
+        except Exception:
+            pass
+
+        adapter.close()
+
+        # ── 构造数据摘要 ──
+        data_summary = {
+            "total_rows": total_rows,
+            "total_columns": len(columns),
+            "columns": [{"key": c.get('name', ''), "label": c.get('label', c.get('name', '')), "type": c.get('field_type', 'text')} for c in columns],
+            "field_stats": field_stats,
+            "audit_stats": audit_stats,
+            "user_stats": user_stats,
+            "recent_logs": recent_logs,
+        }
+
+        # ── 调用 AI ──
+        from backend.ai_client import AIClient
+        client = AIClient(
+            provider=provider,
+            model=model,
+            api_key=api_key,
+            base_url=base_url if base_url else None,
+            temperature=temperature,
+        )
+        result = client.analyze(data_summary, question=question if question else None)
+
+        return jsonify(result)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': f'分析失败: {str(e)}'}), 500
+
+
+@app.route('/api/ai/chat', methods=['POST'])
+@app.route('/api/ai/chat/', methods=['POST'])
+def ai_chat():
+    """AI 对话式追问"""
+    data = request.get_json() or {}
+    provider = data.get('provider', 'openai')
+    model = data.get('model', 'gpt-4o-mini')
+    api_key = data.get('api_key', '')
+    base_url = data.get('base_url', '')
+    history = data.get('history', [])
+    message = data.get('message', '')
+
+    if not api_key:
+        return jsonify({'success': False, 'error': '请提供 API Key'}), 400
+    if not message:
+        return jsonify({'success': False, 'error': '请输入消息'}), 400
+
+    try:
+        from backend.ai_client import AIClient
+        client = AIClient(
+            provider=provider,
+            model=model,
+            api_key=api_key,
+            base_url=base_url if base_url else None,
+        )
+        result = client.chat(history, message)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'对话失败: {str(e)}'}), 500
+
+
+# 前端构建产物路径（新 UI 使用 Vite 构建到 frontend/dist）
+FRONTEND_DIST = os.path.join(base_path, 'frontend', 'dist')
+
+# 缓存破坏版本号（每次重启服务都会变化，强制浏览器刷新 index.html 引用的 JS/CSS）
+_FRONTEND_CACHE_BUSTER = secrets.token_hex(4)
+
+# 读取一次 index.html 并在其中注入缓存破坏参数
+if os.path.exists(os.path.join(FRONTEND_DIST, 'index.html')):
+    with open(os.path.join(FRONTEND_DIST, 'index.html'), 'r', encoding='utf-8') as _f:
+        _index_html_raw = _f.read()
+    # 给 <script src="/assets/..."> 和 <link rel="stylesheet" href="/assets/..."> 加 ?v=...
+    import re as _re
+    # 给 /assets/ 下的 JS/CSS 加缓存破坏参数，避免外站资源（如 Google Fonts）被误改
+    _INDEX_HTML = _re.sub(
+        r'(<script[^>]+src=["\'])(/assets/[^"\']+)(["\'])',
+        r'\1\2?v=' + _FRONTEND_CACHE_BUSTER + r'\3',
+        _index_html_raw
+    )
+    _INDEX_HTML = _re.sub(
+        r'(<link[^>]+href=["\'])(/assets/[^"\']+)(["\'])',
+        r'\1\2?v=' + _FRONTEND_CACHE_BUSTER + r'\3',
+        _INDEX_HTML
+    )
+else:
+    _INDEX_HTML = None
+
+
 # ──────────────────────── React SPA 路由 ────────────────────────
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_react(path):
     if path.startswith('api/'):
         return jsonify({'error': 'Not found'}), 404
+    if path.startswith('static/'):
+        # 仍从 static/ 目录提供上传文件等静态资源
+        response = send_from_directory('static', path[len('static/'):])
+        response.headers['Cache-Control'] = 'public, max-age=3600'
+        return response
     if path.startswith('assets/') or '.' in path.split('/')[-1]:
-        try:
-            return send_from_directory('static', path)
-        except:
-            return send_from_directory('static', 'index.html')
-    return send_from_directory('static', 'index.html')
+        # 前端资源（JS/CSS）从 Vite 构建目录提供，hash 文件名天然支持长期缓存
+        if os.path.exists(os.path.join(FRONTEND_DIST, path)):
+            response = send_from_directory(FRONTEND_DIST, path)
+            response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+            return response
+        # 不加缓存破坏参数，避免找不到真实文件时造成额外问题
+        response = send_from_directory(FRONTEND_DIST, 'index.html')
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Vary'] = '*'
+        return response
+    # 返回带缓存破坏参数的 index.html，确保浏览器每次刷新都加载最新 JS/CSS
+    if _INDEX_HTML is not None:
+        response = Response(_INDEX_HTML, mimetype='text/html')
+    else:
+        response = send_from_directory(FRONTEND_DIST, 'index.html')
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    response.headers['Vary'] = '*'
+    return response
+
 
 # ──────────────────────── 启动 ────────────────────────
 if __name__ == '__main__':

@@ -14,6 +14,8 @@ import {
   TableOutlined,
   TeamOutlined,
   SaveOutlined,
+  RobotOutlined,
+  SafetyOutlined,
 } from '@ant-design/icons';
 import { authApi } from '../api/auth';
 import { auditApi } from '../api/audit';
@@ -51,7 +53,9 @@ const menuItems: MenuProps['items'] = [
   },
   { key: '/users',    icon: <TeamOutlined />,    label: '用户管理' },
   { key: '/backup',   icon: <SaveOutlined />,    label: '备份管理' },
+  { key: '/ai',       icon: <RobotOutlined />,   label: 'AI 分析' },
   { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
+  { key: '/privacy',  icon: <SafetyOutlined />,  label: '隐私政策' },
 ];
 
 export default function AppLayout() {

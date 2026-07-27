@@ -277,6 +277,16 @@ class SQLiteAdapter(DatabaseAdapter):
     def __init__(self, db_path: str):
         self._db_path = db_path
         self._conn = None
+        self._encrypted_db = None  # 加密数据库管理器（可选）
+
+    def set_encryption(self, encrypted_db) -> None:
+        """
+        设置加密数据库管理器。
+        当启用加密时，SQLiteAdapter 的连接将指向临时解密文件。
+        """
+        self._encrypted_db = encrypted_db
+        if encrypted_db:
+            self._db_path = encrypted_db.open()
 
     # ──────── 引擎检测 ────────
 
@@ -314,6 +324,14 @@ class SQLiteAdapter(DatabaseAdapter):
                 pass
             finally:
                 self._conn = None
+        # 如果启用了加密，关闭时加密回写并清理临时文件
+        if self._encrypted_db:
+            try:
+                self._encrypted_db.close()
+            except Exception:
+                pass
+            finally:
+                self._encrypted_db = None
 
     def _ensure_connection(self) -> None:
         if self._conn is None:
@@ -798,6 +816,7 @@ def get_adapter() -> DatabaseAdapter:
     from .config import (
         DB_ENGINE,
         SQLITE_PATH,
+        DB_ENCRYPTION_KEY,
         MYSQL_HOST,
         MYSQL_PORT,
         MYSQL_USER,
@@ -809,6 +828,14 @@ def get_adapter() -> DatabaseAdapter:
     engine = DB_ENGINE.lower().strip()
     if engine == "sqlite":
         adapter = SQLiteAdapter(SQLITE_PATH)
+
+        # 如果启用了加密，设置加密数据库管理器
+        if DB_ENCRYPTION_KEY:
+            from .db_crypto import EncryptedDatabase
+
+            encrypted_path = SQLITE_PATH + ".enc"
+            encrypted_db = EncryptedDatabase(encrypted_path, DB_ENCRYPTION_KEY)
+            adapter.set_encryption(encrypted_db)
     elif engine == "mysql":
         adapter = MySQLAdapter(
             host=MYSQL_HOST,

@@ -11,6 +11,8 @@ import Logs from '../pages/Logs';
 import Users from '../pages/Users';
 import Backup from '../pages/Backup';
 import Settings from '../pages/Settings';
+import AIAnalysis from '../pages/AIAnalysis';
+import PrivacyPolicy from '../pages/PrivacyPolicy';
 
 // 【修复】/login 路由独立于受保护的主布局之外
 // 【修复】用 AuthGuard 包裹需要登录才能访问的所有页面
@@ -36,6 +38,8 @@ const router = createBrowserRouter([
       { path: 'users', element: <Users /> },
       { path: 'backup', element: <Backup /> },
       { path: 'settings', element: <Settings /> },
+      { path: 'ai', element: <AIAnalysis /> },
+      { path: 'privacy', element: <PrivacyPolicy /> },
     ],
   },
 ]);

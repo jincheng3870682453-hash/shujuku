@@ -29,6 +29,9 @@ except ImportError:
 _DEFAULTS: Dict[str, Any] = {
     "DB_ENGINE": "sqlite",
     "SQLITE_PATH": "./data/app.db",
+    # 数据库加密密钥（为空则不启用加密）
+    "DB_ENCRYPTION_KEY": "",
+    # MySQL 配置
     "MYSQL_HOST": "localhost",
     "MYSQL_PORT": 3306,
     "MYSQL_USER": "root",
@@ -69,6 +72,9 @@ DB_ENGINE: str = str(_get_config("DB_ENGINE") or "sqlite")
 # SQLite 数据库文件路径
 SQLITE_PATH: str = str(_get_config("SQLITE_PATH") or "./data/app.db")
 
+# 数据库加密密钥（为空则不启用加密）
+DB_ENCRYPTION_KEY: str = str(_get_config("DB_ENCRYPTION_KEY") or "")
+
 # MySQL 连接配置
 MYSQL_HOST: str = str(_get_config("MYSQL_HOST") or "localhost")
 MYSQL_PORT: int = int(_get_config("MYSQL_PORT") or 3306)
@@ -84,18 +90,11 @@ def get_db_config() -> Dict[str, Any]:
 
     Returns:
         dict: 包含所有配置项的字典
-            - DB_ENGINE: 数据库引擎类型
-            - SQLITE_PATH: SQLite 文件路径
-            - MYSQL_HOST: MySQL 主机
-            - MYSQL_PORT: MySQL 端口
-            - MYSQL_USER: MySQL 用户名
-            - MYSQL_PASSWORD: MySQL 密码
-            - MYSQL_DATABASE: MySQL 数据库名
-            - MYSQL_CHARSET: MySQL 字符集
     """
     return {
         "DB_ENGINE": DB_ENGINE,
         "SQLITE_PATH": SQLITE_PATH,
+        "DB_ENCRYPTION_KEY": DB_ENCRYPTION_KEY,
         "MYSQL_HOST": MYSQL_HOST,
         "MYSQL_PORT": MYSQL_PORT,
         "MYSQL_USER": MYSQL_USER,
@@ -103,3 +102,8 @@ def get_db_config() -> Dict[str, Any]:
         "MYSQL_DATABASE": MYSQL_DATABASE,
         "MYSQL_CHARSET": MYSQL_CHARSET,
     }
+
+
+def is_encryption_enabled() -> bool:
+    """检查是否启用了数据库加密"""
+    return bool(DB_ENCRYPTION_KEY and DB_ENGINE == "sqlite")
