@@ -20,6 +20,7 @@
   <a href="#-数据库表结构">ER 图</a> ·
   <a href="#-审核工作流">审核流程</a> ·
   <a href="#-部署方案">部署</a> ·
+  <a href="#-性能测试">压测</a> ·
   <a href="#-版本历史">版本历史</a>
 </p>
 
@@ -36,6 +37,7 @@
 - [权限模型](#-权限模型)
 - [审核工作流](#-审核工作流)
 - [部署架构](#-部署方案)
+- [性能测试](#-性能测试)
 - [快速开始](#-快速开始)
 - [项目结构](#-项目结构)
 - [默认账户](#-默认账户)
@@ -511,6 +513,41 @@ graph TB
     style Deploy3 fill:#16213e,stroke:#f39c12,color:#fff
     style Deploy4 fill:#0a0a23,stroke:#27ae60,color:#fff
 ```
+
+---
+
+## ⚡ 性能测试
+
+使用 **Locust** 对核心 API 进行压力测试（本地开发环境，SQLite 模式）。
+
+### 测试环境
+
+| 项目 | 配置 |
+|:---|:---|
+| 并发用户 | 170 |
+| 总请求数 | 2,100+ |
+| 失败率 | **0%** |
+| 聚合 RPS | **39.4** |
+
+### 核心接口表现
+
+| 接口 | 请求数 | Median | 95%ile | 99%ile | Average | 失败 |
+|:---|---:|---:|---:|---:|---:|---:|
+| `GET /api/health` | 72 | 3 ms | 16 ms | 22 ms | 4.35 ms | 0 |
+| `GET /api/audit/count` | 64 | 24 ms | 65 ms | 140 ms | 30.77 ms | 0 |
+| `GET /api/columns` | 746 | 31 ms | 110 ms | 140 ms | 38.36 ms | 0 |
+| `GET /api/rows` | 746 | 32 ms | 95 ms | 160 ms | 39.82 ms | 0 |
+| `GET /api/stats/fields` | 200 | 33 ms | 110 ms | 190 ms | 38.64 ms | 0 |
+| `GET /api/me` | 117 | 33 ms | 85 ms | 110 ms | 36.79 ms | 0 |
+| `GET /api/logs` | 57 | 36 ms | 120 ms | 130 ms | 44.22 ms | 0 |
+| `POST /api/login` | 98 | 130 ms | 220 ms | 270 ms | 141.08 ms | 0 |
+| **Aggregated** | **2,100** | **32 ms** | **120 ms** | **190 ms** | **42.38 ms** | **0** |
+
+> 测试命令：`locust -f locustfile.py --host=http://127.0.0.1:5001`
+
+<p align="center">
+  <img src="docs/assets/locust-benchmark.jpg" alt="Locust 压测结果" width="95%">
+</p>
 
 ---
 
