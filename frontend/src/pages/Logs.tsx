@@ -74,7 +74,7 @@ function Logs() {
   });
 
   const columns: ColumnsType<LogItem> = [
-    { title: '时间', dataIndex: 'timestamp', key: 'timestamp', width: 160, render: (v: string) => dayjs(v).format('YYYY-MM-DD HH:mm:ss') },
+    { title: '时间', dataIndex: 'created_at', key: 'created_at', width: 160, render: (v: string) => v ? dayjs(v).format('YYYY-MM-DD HH:mm:ss') : '-' },
     { title: '用户', dataIndex: 'username', key: 'username', width: 100 },
     { title: '角色', dataIndex: 'role', key: 'role', width: 80, render: (r: string) => <Tag color={r === 'boss' ? 'red' : r === 'hr' ? 'blue' : 'green'}>{r === 'boss' ? '管理员' : r === 'hr' ? 'HR' : '员工'}</Tag> },
     { title: '操作', dataIndex: 'action', key: 'action', width: 120, render: (a: string) => <Tag>{a}</Tag> },

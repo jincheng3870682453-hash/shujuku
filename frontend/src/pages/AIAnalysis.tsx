@@ -29,8 +29,6 @@ import {
   Tooltip,
   Empty,
   Alert,
-  Badge,
-  Segmented,
   Modal,
 } from "antd";
 import {
@@ -53,7 +51,6 @@ import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
 import httpClient from "../api/client";
-import { useNavigate } from "react-router-dom";
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -90,7 +87,6 @@ const DEFAULT_CONFIG: AIConfig = {
 };
 
 const AIAnalysis: React.FC = () => {
-  const navigate = useNavigate();
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // ── 状态 ──

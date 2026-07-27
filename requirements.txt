@@ -6,3 +6,6 @@ pywebview>=5.0
 waitress>=2.1
 gevent>=23.0
 locust>=2.20
+requests>=2.28
+python-dotenv>=1.0
+cryptography>=41.0

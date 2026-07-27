@@ -922,6 +922,42 @@ def api_delete_row(row_id):
     log_operation('删除数据', target_type='rows_data', target_id=str(row_id))
     return jsonify({'message': '已删除'})
 
+@app.route('/api/rows/batch-delete', methods=['POST'])
+def api_batch_delete_rows():
+    user_id = session.get('user_id')
+    if not user_id: return jsonify({'error': '请先登录'}), 401
+    if not user_has_permission(user_id, 'delete_data'): return jsonify({'error': '权限不足'}), 403
+    data = request.get_json(silent=True) or {}
+    ids = data.get('ids', [])
+    if not ids or not isinstance(ids, list):
+        return jsonify({'error': '请提供要删除的ID列表'}), 400
+    db = get_db()
+    role = session.get('role', '')
+    username = session.get('username', '')
+    g.current_user_id = user_id; g.current_username = username; g.current_role = role
+    deleted = 0
+    for row_id in ids:
+        try:
+            if role != 'boss':
+                existing = db.fetch_one("SELECT * FROM rows_data WHERE id = ? AND _created_by = ?", (row_id, username))
+            else:
+                existing = db.fetch_one("SELECT * FROM rows_data WHERE id = ?", (row_id,))
+            if not existing:
+                continue
+            if role != 'boss' and is_user_audited(user_id):
+                row_snapshot = json.dumps(dict(existing), ensure_ascii=False, default=str)
+                db.execute_query("INSERT INTO pending_changes (row_id, column_name, old_value, new_value, change_type, requested_by, status) VALUES (?,?,?,?,?,?,?)",
+                                 (row_id, '__delete_row__', row_snapshot, '{}', 'delete', user_id, '待审核'))
+                new_pid = db.fetch_one("SELECT last_insert_rowid() AS id")['id']
+                log_operation('批量提交删除数据审核', target_type='pending_changes', target_id=str(new_pid))
+            else:
+                db.execute_query("DELETE FROM rows_data WHERE id = ?", (row_id,))
+                log_operation('批量删除数据', target_type='rows_data', target_id=str(row_id))
+            deleted += 1
+        except Exception:
+            continue
+    return jsonify({'message': f'成功删除 {deleted} 条记录'})
+
 # ──────────────────────── 审核 ────────────────────────
 @app.route('/api/audit', methods=['GET'])
 def api_audit_list():
@@ -1106,7 +1142,7 @@ def api_approve(change_id):
                         try: db.execute_query(f"ALTER TABLE rows_data ADD COLUMN {cn} {sql_type}")
                         except: pass
                 # 获取请求用户的用户名作为 _created_by
-                req_user = db.fetch_one("SELECT username FROM users WHERE id = ?", (int(change['requested_by']),)) if change.get('requested_by') else None
+                req_user = db.fetch_one("SELECT username FROM users WHERE id = ?", (int(pc['requested_by']),)) if pc.get('requested_by') else None
                 created_by_user = req_user['username'] if req_user else ''
                 sql = f"INSERT INTO rows_data ({', '.join(col_names)}, _created_by) VALUES ({', '.join('?' for _ in col_names)}, ?)"
                 db.execute_query(sql, tuple(values) + (created_by_user,))
@@ -1590,6 +1626,8 @@ def test_mysql_connection():
 @app.route('/api/ai/models', methods=['GET'])
 @app.route('/api/ai/models/', methods=['GET'])
 def get_ai_models():
+    if not session.get('user_id'):
+        return jsonify({'error': '请先登录'}), 401
     """获取支持的 AI 模型预设列表"""
     from backend.ai_client import MODEL_PRESETS
     # 返回预设信息（不包含敏感数据）
@@ -1607,6 +1645,8 @@ def get_ai_models():
 @app.route('/api/ai/test', methods=['POST'])
 @app.route('/api/ai/test/', methods=['POST'])
 def test_ai_connection():
+    if not session.get('user_id'):
+        return jsonify({'error': '请先登录'}), 401
     """测试 AI 连接"""
     data = request.get_json() or {}
     provider = data.get('provider', 'openai')
@@ -1634,6 +1674,8 @@ def test_ai_connection():
 @app.route('/api/ai/analyze', methods=['POST'])
 @app.route('/api/ai/analyze/', methods=['POST'])
 def ai_analyze():
+    if not session.get('user_id'):
+        return jsonify({'error': '请先登录'}), 401
     """AI 数据分析"""
     data = request.get_json() or {}
     provider = data.get('provider', 'openai')
@@ -1745,8 +1787,6 @@ def ai_analyze():
         except Exception:
             pass
 
-        adapter.close()
-
         # ── 构造数据摘要 ──
         data_summary = {
             "total_rows": total_rows,
@@ -1775,11 +1815,19 @@ def ai_analyze():
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': f'分析失败: {str(e)}'}), 500
+    finally:
+        try:
+            if 'adapter' in dir() and adapter:
+                adapter.close()
+        except Exception:
+            pass
 
 
 @app.route('/api/ai/chat', methods=['POST'])
 @app.route('/api/ai/chat/', methods=['POST'])
 def ai_chat():
+    if not session.get('user_id'):
+        return jsonify({'error': '请先登录'}), 401
     """AI 对话式追问"""
     data = request.get_json() or {}
     provider = data.get('provider', 'openai')
