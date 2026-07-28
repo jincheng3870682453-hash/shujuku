@@ -12,6 +12,8 @@ files:
 extraResources:
   - from: "../app.py"
     to: "app.py"
+  - from: "../desktop.py"
+    to: "desktop.py"
   - from: "../backend/"
     to: "backend/"
     filter:
@@ -20,6 +22,10 @@ extraResources:
       - "**/requirements.txt"
   - from: "../frontend/dist/"
     to: "static/"
+  - from: "../data/"
+    to: "data/"
+  - from: "../requirements.txt"
+    to: "requirements.txt"
   - from: "../icon.ico"
     to: "icon.ico"
 

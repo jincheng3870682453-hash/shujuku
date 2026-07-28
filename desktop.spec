@@ -1,12 +1,22 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-
 a = Analysis(
     ['desktop.py'],
     pathex=[],
     binaries=[],
-    datas=[('templates', 'templates'), ('static', 'static')],
-    hiddenimports=['flask', 'openpyxl', 'pymysql', 'waitress'],
+    datas=[
+        ('templates', 'templates'),
+        ('static', 'static'),
+        ('frontend/dist', 'frontend/dist'),
+        ('backend', 'backend'),
+        ('data', 'data'),
+    ],
+    hiddenimports=[
+        'flask', 'openpyxl', 'pymysql', 'waitress', 'gevent',
+        'cryptography', 'requests', 'dotenv', 'webview',
+        'backend.ai_client', 'backend.database', 'backend.auth',
+        'backend.export', 'backend.import_data', 'backend.audit',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -22,7 +32,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='desktop',
+    name='dynamic_registry',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
