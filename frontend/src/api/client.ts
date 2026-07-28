@@ -67,4 +67,49 @@ client.interceptors.response.use(
   }
 );
 
+// AI 专用客户端：超时设为 3 分钟，AI API 响应较慢
+export const aiClient = axios.create({
+  baseURL,
+  timeout: 180000,
+  withCredentials: true,
+});
+
+// 复制拦截器到 AI 客户端
+aiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    if (!(config.data instanceof FormData)) {
+      config.headers['Content-Type'] = 'application/json';
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+aiClient.interceptors.response.use(
+  (response) => response.data,
+  (error) => {
+    if (error.response) {
+      const { status } = error.response;
+      switch (status) {
+        case 401:
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/login';
+          break;
+        case 403:
+          console.error('权限不足');
+          break;
+        case 500:
+          console.error('服务器错误');
+          break;
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default client;

@@ -50,7 +50,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
-import httpClient from "../api/client";
+import httpClient, { aiClient } from "../api/client";
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -90,24 +90,67 @@ const AIAnalysis: React.FC = () => {
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // ── 状态 ──
+  // API Key 仅保存在 React 内存中，不写入 sessionStorage（安全性）
+  // provider、model、base_url 会持久化到 sessionStorage 方便下次使用
   const [config, setConfig] = useState<AIConfig>(() => {
     try {
       const saved = sessionStorage.getItem("ai_config");
-      return saved ? { ...DEFAULT_CONFIG, ...JSON.parse(saved) } : DEFAULT_CONFIG;
-    } catch {
-      return DEFAULT_CONFIG;
-    }
+      if (saved) {
+        // 恢复除 api_key 以外的配置，api_key 每次都需要手动输入
+        const parsed = JSON.parse(saved);
+        return { ...DEFAULT_CONFIG, ...parsed, api_key: "" };
+      }
+    } catch {}
+    return DEFAULT_CONFIG;
   });
   const [modelsPresets, setModelsPresets] = useState<Record<string, ModelPreset>>({});
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [report, setReport] = useState<string>("");
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+
+  // ── 报告和对话历史：从 localStorage 恢复，切换页面不丢失 ──
+  const [report, setReport] = useState<string>(() => {
+    try {
+      return localStorage.getItem("ai_report") || "";
+    } catch {
+      return "";
+    }
+  });
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>(() => {
+    try {
+      const raw = localStorage.getItem("ai_chat_history");
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
   const [chatInput, setChatInput] = useState("");
   const [chatting, setChatting] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<"idle" | "success" | "error">("idle");
   const [dataSummary, setDataSummary] = useState<string>("");
+
+  // ── 持久化 report 到 localStorage ──
+  useEffect(() => {
+    try {
+      if (report) {
+        localStorage.setItem("ai_report", report);
+      } else {
+        localStorage.removeItem("ai_report");
+      }
+    } catch {}
+  }, [report]);
+
+  // ── 持久化 chatHistory 到 localStorage ──
+  useEffect(() => {
+    try {
+      if (chatHistory.length > 0) {
+        localStorage.setItem("ai_chat_history", JSON.stringify(chatHistory));
+      } else {
+        localStorage.removeItem("ai_chat_history");
+      }
+    } catch {}
+  }, [chatHistory]);
 
   // ── 加载模型预设 ──
   useEffect(() => {
@@ -145,13 +188,10 @@ const AIAnalysis: React.FC = () => {
           next.model = modelsPresets[value as string].models[0];
           next.base_url = modelsPresets[value as string].base_url;
         }
-        // 保存到 session（不持久化 API Key）
-        const toSave = { ...next };
-        if (!toSave.api_key) {
-          // 不清除已有 key
-        }
+        // 保存到 sessionStorage（排除 api_key，防止明文泄露）
+        const { api_key, ...safeConfig } = next;
         try {
-          sessionStorage.setItem("ai_config", JSON.stringify(toSave));
+          sessionStorage.setItem("ai_config", JSON.stringify(safeConfig));
         } catch {}
         return next;
       });
@@ -226,7 +266,7 @@ const AIAnalysis: React.FC = () => {
     setTesting(true);
     setConnectionStatus("idle");
     try {
-      const res: any = await httpClient.post("/ai/test", config);
+      const res: any = await aiClient.post("/ai/test", config);
       if (res.success) {
         setConnectionStatus("success");
         message.success(`${res.message} (${res.latency_ms}ms)`);
@@ -250,16 +290,17 @@ const AIAnalysis: React.FC = () => {
       return;
     }
     setLoading(true);
-    setReport("");
-    setChatHistory([]);
+    // 注意：不要在分析开始前清空 report/chatHistory，否则切换页面会丢失旧结果
     setDataSummary("");
     try {
-      const res: any = await httpClient.post("/ai/analyze", {
+      const res: any = await aiClient.post("/ai/analyze", {
         ...config,
         question: customQuestion || "",
       });
       if (res.success) {
         setReport(res.content);
+        setChatHistory([]); // 新分析开始，清空旧对话
+        localStorage.removeItem("ai_chat_history");
         // 保存数据摘要用于对话上下文
         setDataSummary("已分析数据库，可继续追问。");
         message.success(`分析完成${res.tokens ? ` (${res.tokens.total} tokens)` : ""}`);
@@ -281,7 +322,7 @@ const AIAnalysis: React.FC = () => {
     setChatHistory((prev) => [...prev, { role: "user", content: userMsg }]);
     setChatting(true);
     try {
-      const res: any = await httpClient.post("/ai/chat", {
+      const res: any = await aiClient.post("/ai/chat", {
         ...config,
         history: chatHistory,
         message: userMsg,
@@ -463,7 +504,8 @@ const AIAnalysis: React.FC = () => {
                       value={config.api_key}
                       onChange={(e) => updateConfig("api_key", e.target.value)}
                       placeholder="sk-xxx 或您的 API Key"
-                      autoComplete="off"
+                      autoComplete="new-password"
+                      visibilityToggle={false}
                     />
                   </div>
 
@@ -495,7 +537,7 @@ const AIAnalysis: React.FC = () => {
                     测试连接
                   </Button>
                   <Text type="secondary" style={{ fontSize: 12 }}>
-                    API Key 仅保存在当前会话中，关闭页面后自动清除
+                    API Key 仅保存在内存中，刷新页面后需重新输入
                   </Text>
                 </Space>
               </div>
@@ -544,6 +586,19 @@ const AIAnalysis: React.FC = () => {
                 </Button>
                 <Button icon={<FileTextOutlined />} onClick={exportReport}>
                   导出 Markdown
+                </Button>
+                <Button
+                  icon={<ReloadOutlined />}
+                  onClick={() => {
+                    setReport("");
+                    setChatHistory([]);
+                    localStorage.removeItem("ai_report");
+                    localStorage.removeItem("ai_chat_history");
+                    message.success("已清除分析结果");
+                  }}
+                  danger
+                >
+                  清除分析
                 </Button>
               </>
             )}

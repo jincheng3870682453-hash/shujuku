@@ -1647,6 +1647,9 @@ def get_ai_models():
 def test_ai_connection():
     if not session.get('user_id'):
         return jsonify({'error': '请先登录'}), 401
+    g.current_user_id = session['user_id']
+    g.current_username = session.get('username', '')
+    g.current_role = session.get('role', '')
     """测试 AI 连接"""
     data = request.get_json() or {}
     provider = data.get('provider', 'openai')
@@ -1666,8 +1669,16 @@ def test_ai_connection():
             base_url=base_url if base_url else None,
         )
         result = client.test_connection()
+
+        # 记录操作日志
+        if result.get('success'):
+            log_operation('AI连接测试', 'ai_test', detail=f'模型: {model}, 厂商: {provider}')
+        else:
+            log_operation('AI连接测试失败', 'ai_test', detail=f'模型: {model}, 厂商: {provider}, 错误: {result.get("error", "未知错误")[:100]}')
+
         return jsonify(result)
     except Exception as e:
+        log_operation('AI连接测试异常', 'ai_test', detail=f'异常: {str(e)[:200]}')
         return jsonify({'success': False, 'error': f'测试失败: {str(e)}'}), 200
 
 
@@ -1676,6 +1687,9 @@ def test_ai_connection():
 def ai_analyze():
     if not session.get('user_id'):
         return jsonify({'error': '请先登录'}), 401
+    g.current_user_id = session['user_id']
+    g.current_username = session.get('username', '')
+    g.current_role = session.get('role', '')
     """AI 数据分析"""
     data = request.get_json() or {}
     provider = data.get('provider', 'openai')
@@ -1809,11 +1823,26 @@ def ai_analyze():
         )
         result = client.analyze(data_summary, question=question if question else None)
 
+        # 记录操作日志
+        if result.get('success'):
+            log_operation(
+                action='AI分析',
+                target_type='ai_analyze',
+                detail=f'模型: {model}, 厂商: {provider}' + (f', 问题: {question[:80]}' if question else '')
+            )
+        else:
+            log_operation(
+                action='AI分析失败',
+                target_type='ai_analyze',
+                detail=f'模型: {model}, 厂商: {provider}, 错误: {result.get("error", "未知错误")[:100]}'
+            )
+
         return jsonify(result)
 
     except Exception as e:
         import traceback
         traceback.print_exc()
+        log_operation('AI分析异常', 'ai_analyze', detail=f'异常: {str(e)[:200]}')
         return jsonify({'success': False, 'error': f'分析失败: {str(e)}'}), 500
     finally:
         try:
@@ -1828,6 +1857,9 @@ def ai_analyze():
 def ai_chat():
     if not session.get('user_id'):
         return jsonify({'error': '请先登录'}), 401
+    g.current_user_id = session['user_id']
+    g.current_username = session.get('username', '')
+    g.current_role = session.get('role', '')
     """AI 对话式追问"""
     data = request.get_json() or {}
     provider = data.get('provider', 'openai')
@@ -1851,36 +1883,38 @@ def ai_chat():
             base_url=base_url if base_url else None,
         )
         result = client.chat(history, message)
+
+        # 记录操作日志
+        if result.get('success'):
+            log_operation(
+                action='AI对话',
+                target_type='ai_chat',
+                detail=f'模型: {model}, 厂商: {provider}, 消息: {message[:80]}'
+            )
+        else:
+            log_operation(
+                action='AI对话失败',
+                target_type='ai_chat',
+                detail=f'模型: {model}, 厂商: {provider}, 错误: {result.get("error", "未知错误")[:100]}'
+            )
+
         return jsonify(result)
     except Exception as e:
+        log_operation('AI对话异常', 'ai_chat', detail=f'异常: {str(e)[:200]}')
         return jsonify({'success': False, 'error': f'对话失败: {str(e)}'}), 500
 
 
 # 前端构建产物路径（新 UI 使用 Vite 构建到 frontend/dist）
 FRONTEND_DIST = os.path.join(base_path, 'frontend', 'dist')
 
-# 缓存破坏版本号（每次重启服务都会变化，强制浏览器刷新 index.html 引用的 JS/CSS）
-_FRONTEND_CACHE_BUSTER = secrets.token_hex(4)
-
-# 读取一次 index.html 并在其中注入缓存破坏参数
-if os.path.exists(os.path.join(FRONTEND_DIST, 'index.html')):
-    with open(os.path.join(FRONTEND_DIST, 'index.html'), 'r', encoding='utf-8') as _f:
-        _index_html_raw = _f.read()
-    # 给 <script src="/assets/..."> 和 <link rel="stylesheet" href="/assets/..."> 加 ?v=...
-    import re as _re
-    # 给 /assets/ 下的 JS/CSS 加缓存破坏参数，避免外站资源（如 Google Fonts）被误改
-    _INDEX_HTML = _re.sub(
-        r'(<script[^>]+src=["\'])(/assets/[^"\']+)(["\'])',
-        r'\1\2?v=' + _FRONTEND_CACHE_BUSTER + r'\3',
-        _index_html_raw
-    )
-    _INDEX_HTML = _re.sub(
-        r'(<link[^>]+href=["\'])(/assets/[^"\']+)(["\'])',
-        r'\1\2?v=' + _FRONTEND_CACHE_BUSTER + r'\3',
-        _INDEX_HTML
-    )
-else:
-    _INDEX_HTML = None
+def _get_index_html():
+    """每次请求时重新读取 index.html，确保最新构建的 JS/CSS 引用生效"""
+    index_path = os.path.join(FRONTEND_DIST, 'index.html')
+    if not os.path.exists(index_path):
+        return None
+    with open(index_path, 'r', encoding='utf-8') as _f:
+        raw = _f.read()
+    return raw
 
 
 # ──────────────────────── React SPA 路由 ────────────────────────
@@ -1907,9 +1941,10 @@ def serve_react(path):
         response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         response.headers['Vary'] = '*'
         return response
-    # 返回带缓存破坏参数的 index.html，确保浏览器每次刷新都加载最新 JS/CSS
-    if _INDEX_HTML is not None:
-        response = Response(_INDEX_HTML, mimetype='text/html')
+    # 每次请求动态读取 index.html，确保最新构建生效
+    _index_html = _get_index_html()
+    if _index_html is not None:
+        response = Response(_index_html, mimetype='text/html')
     else:
         response = send_from_directory(FRONTEND_DIST, 'index.html')
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'

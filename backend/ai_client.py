@@ -145,8 +145,19 @@ class AIClient:
         # 构建数据摘要
         summary_text = "## 数据库统计信息\n\n"
         summary_text += f"- 总记录数：{data_summary.get('total_rows', 0)}\n"
-        summary_text += f"- 字段数：{data_summary.get('total_columns', 0)}\n"
-        summary_text += f"- 审核状态：{data_summary.get('audit_stats', {})}\n\n"
+        summary_text += f"- 字段数：{data_summary.get('total_columns', 0)}\n\n"
+
+        # 字段列表（列名和类型）
+        columns = data_summary.get("columns", [])
+        if columns:
+            summary_text += "### 字段列表\n\n"
+            summary_text += "| 字段名 | 标签 | 类型 |\n"
+            summary_text += "|--------|------|------|\n"
+            for c in columns:
+                summary_text += f"| {c.get('key', '')} | {c.get('label', c.get('key', ''))} | {c.get('type', 'text')} |\n"
+            summary_text += "\n"
+
+        summary_text += f"- 审核状态：{data_summary.get('audit_stats', {})}\n"
 
         # 字段统计
         field_stats = data_summary.get("field_stats", [])

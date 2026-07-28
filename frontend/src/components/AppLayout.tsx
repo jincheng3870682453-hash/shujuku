@@ -58,10 +58,26 @@ const menuItems: MenuProps['items'] = [
   { key: '/privacy',  icon: <SafetyOutlined />,  label: '隐私政策' },
 ];
 
+// 从 localStorage 读取侧边栏子菜单展开状态
+function loadSidebarOpenKeys(): string[] {
+  try {
+    const raw = localStorage.getItem('sidebar_open_keys');
+    if (raw) return JSON.parse(raw) as string[];
+  } catch {}
+  return []; // 默认全部收起
+}
+
+function saveSidebarOpenKeys(keys: string[]) {
+  try {
+    localStorage.setItem('sidebar_open_keys', JSON.stringify(keys));
+  } catch {}
+}
+
 export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [user, setUser] = useState<UserInfo | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
+  const [openKeys, setOpenKeys] = useState<string[]>(loadSidebarOpenKeys);
   const navigate = useNavigate();
   const location = useLocation();
   const { message } = App.useApp();
@@ -114,9 +130,8 @@ export default function AppLayout() {
     },
   ];
 
-  // 计算选中菜单和展开的 submenu
+  // 计算选中菜单
   const selectedKeys = [location.pathname];
-  const openKeys = ['stats-group', 'audit-group'];
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -164,7 +179,11 @@ export default function AppLayout() {
         <Menu
           mode="inline"
           selectedKeys={selectedKeys}
-          defaultOpenKeys={openKeys}
+          openKeys={openKeys}
+          onOpenChange={(keys) => {
+            setOpenKeys(keys);
+            saveSidebarOpenKeys(keys);
+          }}
           inlineCollapsed={collapsed}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
