@@ -112,7 +112,7 @@ const AIAnalysis: React.FC = () => {
   // ── 加载模型预设 ──
   useEffect(() => {
     httpClient
-      .get("/api/ai/models")
+      .get("/ai/models")
       .then((res: any) => {
         if (res.success) {
           setModelsPresets(res.models);
@@ -226,7 +226,7 @@ const AIAnalysis: React.FC = () => {
     setTesting(true);
     setConnectionStatus("idle");
     try {
-      const res: any = await httpClient.post("/api/ai/test", config);
+      const res: any = await httpClient.post("/ai/test", config);
       if (res.success) {
         setConnectionStatus("success");
         message.success(`${res.message} (${res.latency_ms}ms)`);
@@ -254,7 +254,7 @@ const AIAnalysis: React.FC = () => {
     setChatHistory([]);
     setDataSummary("");
     try {
-      const res: any = await httpClient.post("/api/ai/analyze", {
+      const res: any = await httpClient.post("/ai/analyze", {
         ...config,
         question: customQuestion || "",
       });
@@ -281,7 +281,7 @@ const AIAnalysis: React.FC = () => {
     setChatHistory((prev) => [...prev, { role: "user", content: userMsg }]);
     setChatting(true);
     try {
-      const res: any = await httpClient.post("/api/ai/chat", {
+      const res: any = await httpClient.post("/ai/chat", {
         ...config,
         history: chatHistory,
         message: userMsg,
