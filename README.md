@@ -1,7 +1,7 @@
 # 🔮 动态数据登记系统 · Dynamic Registry
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-4.1-blue?style=for-the-badge" alt="version">
+  <img src="https://img.shields.io/badge/version-5.0-blue?style=for-the-badge" alt="version">
   <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="license">
   <img src="https://img.shields.io/badge/python-3.9+-orange?style=for-the-badge&logo=python" alt="python">
   <img src="https://img.shields.io/badge/react-18-blue?style=for-the-badge&logo=react" alt="react">
@@ -21,7 +21,7 @@
   <a href="#-审核工作流">审核流程</a> ·
   <a href="#-部署方案">部署</a> ·
   <a href="#-性能测试">压测</a> ·
-  <a href="#-v41-更新公告">更新公告</a> ·
+  <a href="#-v50-更新公告">更新公告</a> ·
   <a href="#-完整版本历史">版本历史</a> ·
   <a href="#-用户协议">用户协议</a> ·
   <a href="#-隐私政策">隐私政策</a>
@@ -42,6 +42,7 @@
 - [部署架构](#-部署方案)
 - [性能测试](#-性能测试)
 - [v4.1 更新公告](#-v41-更新公告)
+- [v5.0 更新公告](#-v50-更新公告)
 - [完整版本历史](#-完整版本历史)
 - [用户协议](#-用户协议)
 - [隐私政策](#-隐私政策)
@@ -766,8 +767,9 @@ MYSQL_DATABASE=app_db
 | **v3.0** | **07-22** | 🚀 | **正式版：完整功能 + EXE 安装包交付** |
 | **v4.0** | **07-27** | 🚀 | **架构重构 + 压测验证 + 开源发布** |
 | **v4.1** | **07-27** | 🚀 | **AI 数据分析：多模型对话式智能分析** |
+| **v5.0** | **07-28** | 🚀 | **用户体验大升级：侧边栏持久化、AI稳定性修复、安全增强** |
 
-> 📊 **迭代统计**：22 个版本 · 16 项新增 · 2 项修复 · 2 项优化 · 4 天完成 MVP → 正式版
+> 📊 **迭代统计**：23 个版本 · 16 项新增 · 2 项修复 · 2 项优化 · 5 天完成 MVP → v5.0
 
 ---
 
@@ -790,6 +792,37 @@ MYSQL_DATABASE=app_db
 - 前端资源缓存策略优化，解决浏览器缓存导致的 405 报错
 - `.gitignore` 排除 `__pycache__`、`*.pyc`、`*.db` 文件
 - 后端模块化：新增 `backend/ai_client.py`、`backend/db_crypto.py`
+
+---
+
+## 📢 v5.0 更新公告
+
+> 发布日期：2026 年 7 月 28 日
+
+### 🎯 用户体验升级
+
+| 功能 | 说明 |
+|:---|:---|
+| 侧边栏状态持久化 | 统计看板、审核中心子菜单默认收起，用户展开后记住状态，下次打开保持 |
+| AI 分析结果持久化 | 切换到其他页面再回来，分析报告和对话历史不会丢失（localStorage 持久化） |
+| 清除分析按钮 | 新增一键清除 AI 分析结果功能 |
+
+### 🛡️ 安全性增强
+
+| 修复 | 说明 |
+|:---|:---|
+| API Key 不落盘 | API Key 不再写入 sessionStorage，仅保存在 React 内存中，刷新页面自动清除 |
+| 密码输入框保护 | 禁用密码可见性切换按钮 + `autoComplete="new-password"` 防止浏览器干扰 |
+| 审计日志补全 | AI 连接测试、AI 分析、AI 对话操作全部写入 `operations_log` 审计表 |
+
+### 🐛 稳定性修复
+
+| 修复 | 说明 |
+|:---|:---|
+| **AI 分析超时** | 超时时间从 15 秒提升至 3 分钟（`aiClient` 独立 axios 实例），解决 DeepSeek 等模型响应慢导致的分析中断 |
+| **AI 看不到字段** | Prompt 中新增字段列表表格（字段名/标签/类型），AI 现在能正确识别所有数据字段 |
+| **index.html 缓存** | Flask 改为每次请求动态读取 `index.html`，重启后立即生效，不再需要手动清缓存 |
+| **审计日志缺失** | 修复 `/api/ai/*` 三个路由缺少 `g.current_user_id` 导致日志写入静默失败的问题 |
 
 ---
 
@@ -876,6 +909,7 @@ MYSQL_DATABASE=app_db
 | **v3.0** | **07-22** | 🚀 | **正式版**：功能全面、UI 统一、PyInstaller + Inno Setup 打包交付（EXE + 安装包） |
 | **v4.0** | **07-27** | 🚀 | **架构重构**：React + Electron + 双数据库引擎 + Docker 部署 + 压测验证 + GitHub 开源 |
 | **v4.1** | **07-27** | 🚀 | **AI 数据分析**：多模型对话式智能分析（DeepSeek/OpenAI/通义千问） |
+| **v5.0** | **07-28** | 🚀 | **UX 大升级**：侧边栏持久化、AI 分析结果持久化、API Key 安全性、超时修复、审计日志补全 |
 
 ### ⚠️ v2.5-rc 回滚详情
 
@@ -900,19 +934,20 @@ timeline
           : v3.0 正式版<br/>EXE + 安装包交付
     07-27 : v4.0 架构重构<br/>React + Electron + Docker + 开源
           : v4.1 AI 数据分析<br/>多模型对话式智能分析
+    07-28 : v5.0 UX 大升级<br/>持久化 + 安全 + 稳定性修复
 ```
 
 | 指标 | 数值 |
 |:---|:---:|
-| 总版本数 | **22** |
+| 总版本数 | **23** |
 | 新增功能 | **16** |
 | 修复问题 | **2** |
 | 优化改进 | **2** |
 | 回滚操作 | **1** |
-| 开发周期 | 2026-07-19 ~ 2026-07-27（9 天） |
-| 阶段跨度 | alpha → beta → rc → 正式版 → 架构重构 → AI 增强 |
+| 开发周期 | 2026-07-19 ~ 2026-07-28（10 天） |
+| 阶段跨度 | alpha → beta → rc → 正式版 → 架构重构 → AI 增强 → UX 升级 |
 
-> 📅 **最后更新**：2026-07-27 &nbsp;&nbsp;|&nbsp;&nbsp; 🏷️ **当前版本**：v4.1
+> 📅 **最后更新**：2026-07-28 &nbsp;&nbsp;|&nbsp;&nbsp; 🏷️ **当前版本**：v5.0
 
 ---
 
