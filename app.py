@@ -809,18 +809,11 @@ def api_list_rows():
     page_size = min(100, max(1, request.args.get('pageSize', 20, type=int) or 20))
     col_names = ", ".join(c['name'] for c in cols)
     db = get_db()
-    # 权限过滤：非 boss 角色只能看到自己创建的数据
-    role = session.get('role', '')
-    username = session.get('username', '')
-    where_clause = ""
-    where_params = []
-    if not can_view_all_rows(role):
-        where_clause = " WHERE _created_by = ?"
-        where_params = [username]
-    count_row = db.fetch_one(f"SELECT COUNT(*) AS cnt FROM rows_data" + where_clause, tuple(where_params))
+    # 具备 view_data 权限的用户均可查看全部数据（增删改仍由权限表控制）
+    count_row = db.fetch_one("SELECT COUNT(*) AS cnt FROM rows_data")
     total = count_row['cnt'] if count_row else 0
     offset = (page - 1) * page_size
-    rows = db.fetch_all(f"SELECT id, {col_names} FROM rows_data" + where_clause + " ORDER BY id DESC LIMIT ? OFFSET ?", tuple(where_params) + (page_size, offset))
+    rows = db.fetch_all(f"SELECT id, {col_names} FROM rows_data ORDER BY id DESC LIMIT ? OFFSET ?", (page_size, offset))
     return jsonify({
         'data': [{'id': r['id'], **{c['name']: r[c['name']] for c in cols}} for r in rows],
         'total': total,
