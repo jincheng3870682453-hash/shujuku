@@ -12,4 +12,4 @@ if __name__ == '__main__':
     t.start()
     time.sleep(2)
     webview.create_window('动态数据登记系统', 'http://127.0.0.1:5001', width=1200, height=800)
-    webview.start()
+    webview.start(gui='edgechromium')

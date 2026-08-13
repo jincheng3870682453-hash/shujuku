@@ -407,14 +407,18 @@ class TestFactory(unittest.TestCase):
         adapter = get_adapter()
         self.assertIsInstance(adapter, SQLiteAdapter)
 
-    def test_get_adapter_singleton(self):
-        """多次调用 get_adapter 应返回同一实例"""
+    def test_get_adapter_returns_independent_instances(self):
+        """多次调用 get_adapter 应返回独立实例（工厂模式，非单例）"""
         os.environ["DB_ENGINE"] = "sqlite"
         os.environ["SQLITE_PATH"] = ":memory:"
         reset_adapter()
         a1 = get_adapter()
         a2 = get_adapter()
-        self.assertIs(a1, a2)
+        try:
+            self.assertIsNot(a1, a2)
+        finally:
+            a1.close()
+            a2.close()
 
 
 # ========== 运行入口 ==========

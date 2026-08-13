@@ -30,6 +30,7 @@ import {
   Empty,
   Alert,
   Modal,
+  Switch,
 } from "antd";
 import {
   RobotOutlined,
@@ -45,6 +46,7 @@ import {
   MessageOutlined,
   FileTextOutlined,
   ApiOutlined,
+  AudioOutlined,
 } from "@ant-design/icons";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -76,6 +78,7 @@ interface AIConfig {
   api_key: string;
   base_url: string;
   temperature: number;
+  web_search: boolean;
 }
 
 const DEFAULT_CONFIG: AIConfig = {
@@ -84,6 +87,7 @@ const DEFAULT_CONFIG: AIConfig = {
   api_key: "",
   base_url: "",
   temperature: 0.7,
+  web_search: false,
 };
 
 const AIAnalysis: React.FC = () => {
@@ -107,50 +111,54 @@ const AIAnalysis: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
 
-  // ── 报告和对话历史：从 localStorage 恢复，切换页面不丢失 ──
-  const [report, setReport] = useState<string>(() => {
-    try {
-      return localStorage.getItem("ai_report") || "";
-    } catch {
-      return "";
-    }
-  });
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>(() => {
-    try {
-      const raw = localStorage.getItem("ai_chat_history");
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
-    }
-  });
+  // ── 报告和对话历史：按用户存储在后端，切换账号/设备不混淆 ──
+  const [report, setReport] = useState<string>("");
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
 
   const [chatInput, setChatInput] = useState("");
   const [chatting, setChatting] = useState(false);
+  // ── 语音输入（Web Speech API，仅识别用户语音）──
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showConfig, setShowConfig] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<"idle" | "success" | "error">("idle");
   const [dataSummary, setDataSummary] = useState<string>("");
+  // ── 当前登录用户身份（影响 AI 分析视角与可见数据范围）──
+  const [myRole, setMyRole] = useState<string>("");
+  const [myRoleLabel, setMyRoleLabel] = useState<string>("");
 
-  // ── 持久化 report 到 localStorage ──
+  // ── 挂载时从后端加载当前用户的历史记录（按用户隔离）──
   useEffect(() => {
-    try {
-      if (report) {
-        localStorage.setItem("ai_report", report);
-      } else {
-        localStorage.removeItem("ai_report");
-      }
-    } catch {}
-  }, [report]);
+    let mounted = true;
+    httpClient
+      .get("/ai/history")
+      .then((res: any) => {
+        if (!mounted || !res?.success) return;
+        setReport(res.report || "");
+        setChatHistory(Array.isArray(res.chat_history) ? res.chat_history : []);
+      })
+      .catch(() => {
+        // 加载失败静默处理，保持空白状态
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
-  // ── 持久化 chatHistory 到 localStorage ──
+  // ── 保存 report / chatHistory 到后端（按用户隔离，防抖）──
+  const saveHistoryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    try {
-      if (chatHistory.length > 0) {
-        localStorage.setItem("ai_chat_history", JSON.stringify(chatHistory));
-      } else {
-        localStorage.removeItem("ai_chat_history");
-      }
-    } catch {}
-  }, [chatHistory]);
+    if (saveHistoryTimer.current) clearTimeout(saveHistoryTimer.current);
+    saveHistoryTimer.current = setTimeout(() => {
+      httpClient
+        .post("/ai/history", { report, chat_history: chatHistory })
+        .catch(() => {});
+    }, 800);
+    return () => {
+      if (saveHistoryTimer.current) clearTimeout(saveHistoryTimer.current);
+    };
+  }, [report, chatHistory]);
 
   // ── 加载模型预设 ──
   useEffect(() => {
@@ -173,6 +181,19 @@ const AIAnalysis: React.FC = () => {
       });
   }, []);
 
+  // ── 获取当前登录用户身份（用于提示 AI 分析视角与数据范围）──
+  useEffect(() => {
+    httpClient
+      .get("/me")
+      .then((res: any) => {
+        const role: string = res?.role || "";
+        setMyRole(role);
+        const labels: Record<string, string> = { boss: "管理员", hr: "HR", employee: "员工" };
+        setMyRoleLabel(labels[role] || role || "普通用户");
+      })
+      .catch(() => {});
+  }, []);
+
   // ── 自动滚动到底部 ──
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -180,13 +201,18 @@ const AIAnalysis: React.FC = () => {
 
   // ── 配置变更 ──
   const updateConfig = useCallback(
-    (key: keyof AIConfig, value: string | number) => {
+    (key: keyof AIConfig, value: string | number | boolean) => {
       setConfig((prev) => {
         const next = { ...prev, [key]: value };
         // 切换 provider 时自动选第一个模型
         if (key === "provider" && modelsPresets[value as string]) {
           next.model = modelsPresets[value as string].models[0];
           next.base_url = modelsPresets[value as string].base_url;
+          // 联网搜索仅 DeepSeek 的 Responses API（/responses 端点）原生支持
+          // tools[0].type='web_search'；后端会自动切到 /responses 端点。
+          // 切到 DeepSeek 时默认开启，切到其他 provider 时强制关闭，
+          // 避免请求被服务端以 400 拒绝。
+          next.web_search = value === "deepseek";
         }
         // 保存到 sessionStorage（排除 api_key，防止明文泄露）
         const { api_key, ...safeConfig } = next;
@@ -200,8 +226,26 @@ const AIAnalysis: React.FC = () => {
     [modelsPresets]
   );
 
+  // 当前 provider 是否支持联网搜索（仅 DeepSeek 原生支持）
+  const webSearchSupported = config.provider === "deepseek";
+
+  // 从请求异常中提取可读的错误消息文本（供消息提示、对话记录等场景复用）
+  const extractErrorMessage = (error: any, fallback: string): string => {
+    if (typeof error === "string") return error || fallback;
+    const data = error?.response?.data;
+    if (data?.error) return String(data.error);
+    if (data?.message) return String(data.message);
+    if (typeof data === "string") return data.slice(0, 200);
+    if (error?.message) return error.message;
+    return fallback;
+  };
+
   // 展示后端返回的具体错误信息（优先从 error.response.data 里取完整错误）
   const showError = (error: any, fallback: string) => {
+    // 错误响应中若附带兼容性提示（如联网搜索被自动关闭），同样先展示
+    if (error?.response?.data?._warning) {
+      message.warning(error.response.data._warning);
+    }
     let msg = fallback;
     let detail = "";
     if (typeof error === "string") {
@@ -257,7 +301,16 @@ const AIAnalysis: React.FC = () => {
     }
   };
 
+  // 展示后端返回的兼容性提示（如联网搜索被自动关闭）
+  const showWarning = (res: any) => {
+    if (res?._warning) {
+      message.warning(res._warning);
+    }
+  };
+
   // ── 测试连接 ──
+  // 用当前 AI 配置发起一次最小请求，验证 API Key / Base URL 是否可用，
+  // 成功则展示模型名与延迟，失败则提示具体原因。
   const testConnection = async () => {
     if (!config.api_key) {
       message.warning("请先填写 API Key");
@@ -267,6 +320,7 @@ const AIAnalysis: React.FC = () => {
     setConnectionStatus("idle");
     try {
       const res: any = await aiClient.post("/ai/test", config);
+      showWarning(res);
       if (res.success) {
         setConnectionStatus("success");
         message.success(`${res.message} (${res.latency_ms}ms)`);
@@ -283,6 +337,8 @@ const AIAnalysis: React.FC = () => {
   };
 
   // ── 一键分析 ──
+  // 汇总当前数据库统计信息发送给 AI 生成分析报告；
+  // customQuestion 可选，传入后作为用户自定义问题代替默认分析要求。
   const startAnalysis = async (customQuestion?: string) => {
     if (!config.api_key) {
       message.warning("请先填写 API Key");
@@ -297,10 +353,10 @@ const AIAnalysis: React.FC = () => {
         ...config,
         question: customQuestion || "",
       });
+      showWarning(res);
       if (res.success) {
         setReport(res.content);
-        setChatHistory([]); // 新分析开始，清空旧对话
-        localStorage.removeItem("ai_chat_history");
+        setChatHistory([]); // 新分析开始，清空旧对话（后端记录会随防抖保存更新）
         // 保存数据摘要用于对话上下文
         setDataSummary("已分析数据库，可继续追问。");
         message.success(`分析完成${res.tokens ? ` (${res.tokens.total} tokens)` : ""}`);
@@ -315,6 +371,7 @@ const AIAnalysis: React.FC = () => {
   };
 
   // ── 对话追问 ──
+  // 将输入框消息追加到历史后发给 AI 继续对话，返回内容以气泡形式追加到聊天列表。
   const sendChat = async () => {
     if (!chatInput.trim() || !config.api_key) return;
     const userMsg = chatInput.trim();
@@ -327,16 +384,113 @@ const AIAnalysis: React.FC = () => {
         history: chatHistory,
         message: userMsg,
       });
+      showWarning(res);
       if (res.success) {
         setChatHistory((prev) => [...prev, { role: "assistant", content: res.content }]);
       } else {
         setChatHistory((prev) => [...prev, { role: "assistant", content: `❌ 错误：${res.error}` }]);
       }
     } catch (e: any) {
-      const errText = e?.response?.data?.error || e?.response?.data?.message || e?.message || "未知错误";
+      const errText = extractErrorMessage(e, "未知错误");
       setChatHistory((prev) => [...prev, { role: "assistant", content: `❌ 请求失败：${errText}` }]);
     } finally {
       setChatting(false);
+    }
+  };
+
+  // ── 语音识别：识别用户语音填入追问框 ──
+  // 只识别用户说的话（中/英文）；一旦 1.5 秒未识别到有效语音立即自动暂停。
+  // 组件卸载时清理计时器与识别实例，避免内存泄漏。
+  useEffect(() => {
+    return () => {
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+      try {
+        recognitionRef.current?.stop();
+      } catch {}
+    };
+  }, []);
+
+  const clearSilenceTimer = () => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+  };
+
+  const startSilenceTimer = () => {
+    clearSilenceTimer();
+    silenceTimerRef.current = setTimeout(() => {
+      // 1.5 秒未识别到有效中文/英文语音 → 自动暂停识别
+      try {
+        recognitionRef.current?.stop();
+      } catch {}
+    }, 1500);
+  };
+
+  const stopVoiceInput = () => {
+    clearSilenceTimer();
+    try {
+      recognitionRef.current?.stop();
+    } catch {}
+    setIsListening(false);
+  };
+
+  const startVoiceInput = () => {
+    if (isListening) {
+      // 再次点击 = 手动停止
+      stopVoiceInput();
+      return;
+    }
+    const SR: any =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) {
+      message.warning("当前环境不支持语音识别，请使用 Edge 或 Chrome 浏览器");
+      return;
+    }
+    try {
+      const rec = new SR();
+      recognitionRef.current = rec;
+      rec.lang = "zh-CN"; // 中英文语音识别（zh-CN 可识别常见英文单词）
+      rec.continuous = true; // 持续识别，直到检测到静音
+      rec.interimResults = true; // 实时返回中间结果，提升交互体验
+      rec.maxAlternatives = 1;
+      rec.onstart = () => {
+        setIsListening(true);
+        // 启动后立即计时：若用户始终不说话则 1.5s 后自动暂停
+        startSilenceTimer();
+      };
+      rec.onresult = (event: any) => {
+        let finalText = "";
+        let interimText = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const result = event.results[i];
+          if (result.isFinal) finalText += result[0].transcript;
+          else interimText += result[0].transcript;
+        }
+        setChatInput(finalText + interimText);
+        // 每次识别到有效语音，重置 1.5s 静音计时器
+        startSilenceTimer();
+      };
+      rec.onerror = (event: any) => {
+        // no-speech/aborted 属于静音超时或手动停止，属正常情况，不提示
+        if (event.error && event.error !== "no-speech" && event.error !== "aborted") {
+          message.error(`语音识别失败：${event.error}`);
+        }
+        clearSilenceTimer();
+        setIsListening(false);
+      };
+      rec.onend = () => {
+        clearSilenceTimer();
+        setIsListening(false);
+        recognitionRef.current = null;
+      };
+      rec.start();
+    } catch {
+      message.error("无法启动语音识别，请检查麦克风权限");
+      setIsListening(false);
     }
   };
 
@@ -522,6 +676,31 @@ const AIAnalysis: React.FC = () => {
                       placeholder={modelsPresets[config.provider]?.base_url || "自动填充"}
                     />
                   </div>
+
+                  {/* 联网搜索 */}
+                  <div>
+                    <Text strong style={{ display: "block", marginBottom: 4 }}>
+                      <Tooltip
+                        title={
+                          webSearchSupported
+                            ? "开启后 DeepSeek 模型可实时检索网络获取最新信息"
+                            : "联网搜索仅 DeepSeek 提供商支持，请先切换到 DeepSeek"
+                        }
+                      >
+                        联网搜索 <QuestionCircleOutlined />
+                      </Tooltip>
+                    </Text>
+                    <Switch
+                      checked={config.web_search}
+                      disabled={!webSearchSupported}
+                      onChange={(v) => updateConfig("web_search", v)}
+                      checkedChildren="开启"
+                      unCheckedChildren="关闭"
+                    />
+                    <Text type="secondary" style={{ fontSize: 12, display: "block", marginTop: 4 }}>
+                      {webSearchSupported ? "让 AI 实时检索网络" : "当前 provider 不支持联网搜索"}
+                    </Text>
+                  </div>
                 </div>
 
                 <Divider style={{ margin: "12px 0" }} />
@@ -592,8 +771,8 @@ const AIAnalysis: React.FC = () => {
                   onClick={() => {
                     setReport("");
                     setChatHistory([]);
-                    localStorage.removeItem("ai_report");
-                    localStorage.removeItem("ai_chat_history");
+                    // 同步清除后端记录（按用户隔离）
+                    httpClient.delete("/ai/history").catch(() => {});
                     message.success("已清除分析结果");
                   }}
                   danger
@@ -604,6 +783,28 @@ const AIAnalysis: React.FC = () => {
             )}
           </div>
 
+          {myRole && (
+            <Alert
+              message={
+                <Space wrap size={4}>
+                  <Text strong style={{ fontSize: 13 }}>
+                    <RobotOutlined /> 当前身份：{myRoleLabel}
+                  </Text>
+                  <Tag color={myRole === "boss" ? "gold" : myRole === "hr" ? "blue" : "green"}>
+                    {myRole === "employee" ? "仅分析你创建的数据" : myRole === "hr" ? "可分析全部数据（HR 视角）" : "可分析全部数据（全局视角）"}
+                  </Tag>
+                </Space>
+              }
+              description={
+                myRole === "employee"
+                  ? "AI 仅会基于你创建的数据进行分析，不会涉及其他用户的数据。"
+                  : "AI 会基于全部数据进行分析，并针对你的身份采用对应的分析视角。"
+              }
+              type={myRole === "employee" ? "success" : "warning"}
+              showIcon
+              style={{ fontSize: 13 }}
+            />
+          )}
           <Alert
             message={
               <span>
@@ -774,7 +975,30 @@ const AIAnalysis: React.FC = () => {
               <div ref={chatEndRef} />
             </div>
 
+            {isListening && (
+              <div style={{ marginBottom: 8 }}>
+                <Tag color="processing" icon={<AudioOutlined />} style={{ marginRight: 0 }}>
+                  正在聆听... 1.5 秒无有效语音将自动暂停，点击麦克风可手动停止
+                </Tag>
+              </div>
+            )}
             <Space.Compact style={{ width: "100%" }}>
+              <Button
+                type={isListening ? "primary" : "default"}
+                icon={<AudioOutlined />}
+                onClick={startVoiceInput}
+                disabled={chatting}
+                style={{
+                  height: "auto",
+                  background: isListening ? "var(--danger, #ff4d4f)" : undefined,
+                  borderColor: isListening ? "var(--danger, #ff4d4f)" : undefined,
+                }}
+                title={
+                  isListening
+                    ? "停止语音输入（1.5 秒无语音自动暂停）"
+                    : "语音输入（识别中文/英文）"
+                }
+              />
               <TextArea
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}

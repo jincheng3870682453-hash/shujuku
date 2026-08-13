@@ -114,11 +114,15 @@ export default function Charts() {
     queryFn: statsApi.getStatFields,
   });
 
-  const { data: fieldStats, isLoading: statsLoading, isError } = useQuery({
+  const { data: fieldStats, isLoading: statsLoading, isError, error } = useQuery({
     queryKey: ['fieldStats', selectedField],
     queryFn: () => statsApi.getFieldStats(selectedField!),
     enabled: !!selectedField,
+    retry: false,
   });
+
+  // 403 = 当前账号无查看统计的权限，给出明确的权限提示而非笼统的加载失败
+  const noPermission = isError && (error as { response?: { status?: number } } | undefined)?.response?.status === 403;
 
   const chartOption = useMemo(() => {
     if (!fieldStats || !fieldStats.items.length) return null;
@@ -382,6 +386,10 @@ export default function Charts() {
           <div style={{ padding: 80, textAlign: 'center' }}>
             <Spin size="large" />
             <div style={{ marginTop: 12, color: '#62666d', fontSize: 13 }}>正在加载数据...</div>
+          </div>
+        ) : noPermission ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 420, flexDirection: 'column' }}>
+            <Text style={{ color: '#eb5757', marginBottom: 8 }}>暂无查看统计数据的权限，请联系管理员开通「查看统计数据」权限</Text>
           </div>
         ) : isError ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 420, flexDirection: 'column' }}>

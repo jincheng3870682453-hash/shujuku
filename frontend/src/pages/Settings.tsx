@@ -5,6 +5,7 @@ import {
 import { SaveOutlined, ReloadOutlined, LinkOutlined, BgColorsOutlined, UploadOutlined, PictureOutlined, DeleteOutlined, SwapOutlined, ThunderboltOutlined, EyeOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { settingsApi } from '../api/settings';
+import { authApi } from '../api/auth';
 import type { AppSettings, DBEngine } from '../types/data';
 import type { Color } from 'antd/es/color-picker';
 
@@ -12,6 +13,20 @@ const { Title, Text, Paragraph } = Typography;
 
 const BG_IMAGE_KEY = 'bg_image';
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+/** 将当前 localStorage 中的背景/主题同步保存到当前登录用户（按用户隔离存储） */
+function syncUserThemeToServer() {
+  try {
+    const t = loadTheme();
+    authApi.saveUserTheme({
+      theme: t,
+      texture: localStorage.getItem('dashboard_texture') || 'glass',
+      glass_alpha: Number(localStorage.getItem('glass_alpha') || String(t.cardOpacity / 100)),
+      neon_accent: localStorage.getItem('neon_accent') || 'purple',
+      bg_image: loadBgImage(),
+    }).catch(() => { /* 静默失败，不影响本地使用 */ });
+  } catch { /* 忽略非关键错误 */ }
+}
 
 interface ThemeColors {
   primaryColor: string; backgroundColor: string; cardColor: string; textColor: string; cardOpacity: number;
@@ -285,11 +300,22 @@ function Settings() {
     }
   }, [bgImage]);
 
+  // 颜色/滑块频繁触发时防抖同步到后端
+  const themeSaveTimer = useRef<number | null>(null);
+  const scheduleThemeSave = () => {
+    if (themeSaveTimer.current) window.clearTimeout(themeSaveTimer.current);
+    themeSaveTimer.current = window.setTimeout(syncUserThemeToServer, 600);
+  };
+
   const handleThemeChange = (key: keyof ThemeColors, value: string | number) => {
     const updated = { ...theme, [key]: value };
     setTheme(updated); applyTheme(updated); localStorage.setItem('theme', JSON.stringify(updated));
+    scheduleThemeSave();
   };
-  const resetTheme = () => { setTheme(DEFAULT_THEME); applyTheme(DEFAULT_THEME); localStorage.setItem('theme', JSON.stringify(DEFAULT_THEME)); };
+  const resetTheme = () => {
+    setTheme(DEFAULT_THEME); applyTheme(DEFAULT_THEME); localStorage.setItem('theme', JSON.stringify(DEFAULT_THEME));
+    syncUserThemeToServer();
+  };
 
   // 背景图处理
   const handleBgFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -336,6 +362,7 @@ function Settings() {
     }
     setBgImage(bgPreviewUrl);
     messageApi.success('背景图已保存并应用');
+    syncUserThemeToServer();
   };
 
   const handleResetBgImage = () => {
@@ -347,6 +374,7 @@ function Settings() {
     setBgImage(null);
     setBgPreviewUrl(null);
     messageApi.success('背景图已恢复为默认');
+    syncUserThemeToServer();
   };
 
   const { data: settings, isLoading } = useQuery<AppSettings>({
@@ -653,6 +681,7 @@ function Settings() {
   const handleTextureChange = (key: string) => {
     setActiveTexture(key);
     switchTexture(key);
+    syncUserThemeToServer();
   };
 
   const handleRandomTexture = () => {
@@ -828,6 +857,7 @@ function Settings() {
                   onClick={() => {
                     setNeonAccent(acc.key);
                     switchNeonAccent(acc.key);
+                    syncUserThemeToServer();
                   }}
                   style={{
                     cursor: 'pointer',
@@ -869,7 +899,7 @@ function Settings() {
     <Card className="glass-card">
       <div style={{ maxHeight: 'calc(100vh - 240px)', overflow: 'auto', paddingRight: 8 }}>
         <Title level={4}>隐私政策</Title>
-        <Paragraph type="secondary">更新日期：2026年7月25日</Paragraph>
+        <Paragraph type="secondary">更新日期：2026年8月13日</Paragraph>
         <Paragraph>
           动态数据登记系统（以下简称"本软件"）由个人开发者（以下简称"我方"或"我们"）开发并发布。
           我们深知个人信息对您的重要性，并承诺严格遵守《中华人民共和国个人信息保护法》《中华人民共和国数据安全法》
@@ -897,15 +927,23 @@ function Settings() {
         <Paragraph>4.1 本软件的<strong>核心功能无需联网</strong>即可正常运行。</Paragraph>
         <Paragraph>4.2 仅在以下场景中，本软件可能发起网络请求：</Paragraph>
         <Paragraph style={{ paddingLeft: 16 }}>- 您主动点击"检查更新"按钮，此时本软件仅查询版本号信息，不传输任何个人数据；</Paragraph>
-        <Paragraph style={{ paddingLeft: 16 }}>- 您主动使用需要网络的扩展功能模块（如有）。</Paragraph>
+        <Paragraph style={{ paddingLeft: 16 }}>- 您主动使用需要网络的扩展功能模块（如有）；</Paragraph>
+        <Paragraph style={{ paddingLeft: 16 }}>- 您主动发起 AI 数据分析时，本软件会将相关数据摘要发送至您自行配置的 AI 模型服务商（如 DeepSeek、OpenAI、通义千问等）进行智能分析。</Paragraph>
         <Paragraph>4.3 本软件不存在任何自动化的后台数据传输、云端同步或向第三方服务器上报信息的行为。</Paragraph>
 
-        <Title level={5}>五、第三方服务</Title>
-        <Paragraph>5.1 本软件<strong>不集成任何第三方 SDK</strong>、追踪代码、广告组件或统计分析工具。</Paragraph>
-        <Paragraph>5.2 我们不会将您的数据出售、出租、共享或披露给任何第三方。</Paragraph>
-        <Paragraph>5.3 在法律法规要求或司法机关依法指令的情况下，我们可能需配合提供必要信息，但此情形仅适用于法律明确要求的范围，且需合法的法律文书为前提。由于我们并不掌握任何用户数据，此种情况下我们无法提供实质性信息。</Paragraph>
+        <Title level={5}>五、AI 分析功能说明</Title>
+        <Paragraph>5.1 AI 分析为可选功能，需您在设置中自行配置 AI 服务商的 API Key 后启用。</Paragraph>
+        <Paragraph>5.2 使用 AI 分析时，仅当您主动发起分析请求，本软件才会将相关数据摘要发送至您配置的 AI 服务商，用于生成分析报告和对话回复。</Paragraph>
+        <Paragraph>5.3 <strong>数据范围受权限控制：</strong>员工账号仅能分析自己创建的数据；HR 与管理员账号可分析全量数据。不同账号的数据可见范围与其在系统中的权限保持一致。</Paragraph>
+        <Paragraph>5.4 <strong>记录按账号隔离：</strong>分析报告与对话记录仅保存在本机数据库中，并按账号隔离存储，不同账号之间的记录互不可见。您可随时在 AI 分析页面清除全部分析记录。</Paragraph>
+        <Paragraph>5.5 由于 AI 服务商为第三方服务，其数据处理行为受该服务商自身隐私政策的约束，建议您在使用前查阅相应服务商的隐私条款。</Paragraph>
 
-        <Title level={5}>六、您的权利</Title>
+        <Title level={5}>六、第三方服务</Title>
+        <Paragraph>6.1 本软件<strong>不集成任何第三方 SDK</strong>、追踪代码、广告组件或统计分析工具。</Paragraph>
+        <Paragraph>6.2 我们不会将您的数据出售、出租、共享或披露给任何第三方。</Paragraph>
+        <Paragraph>6.3 在法律法规要求或司法机关依法指令的情况下，我们可能需配合提供必要信息，但此情形仅适用于法律明确要求的范围，且需合法的法律文书为前提。由于我们并不掌握任何用户数据，此种情况下我们无法提供实质性信息。</Paragraph>
+
+        <Title level={5}>七、您的权利</Title>
         <Paragraph>作为数据的完全控制者，您享有以下权利：</Paragraph>
         <Paragraph style={{ paddingLeft: 16 }}><strong>查阅权：</strong>您可以随时查看本软件中存储的所有数据；</Paragraph>
         <Paragraph style={{ paddingLeft: 16 }}><strong>修改权：</strong>您可以对任何数据进行新增、编辑或删除操作；</Paragraph>
@@ -915,44 +953,44 @@ function Settings() {
         <Paragraph style={{ paddingLeft: 16 }}><strong>卸载权：</strong>您可以随时卸载本软件，卸载后本地数据文件不会自动删除，由您自行决定保留或删除。</Paragraph>
         <Paragraph>建议您定期备份数据库文件，以防硬件故障、误操作或其他意外情况导致数据丢失。</Paragraph>
 
-        <Title level={5}>七、数据保留与销毁</Title>
-        <Paragraph>7.1 您的数据保留期限完全由您自行决定，本软件不会设置数据自动过期或自动删除机制。</Paragraph>
-        <Paragraph>7.2 如您决定不再使用本软件，可通过卸载程序并手动删除数据库文件来永久销毁所有数据。</Paragraph>
-        <Paragraph>7.3 数据库文件默认存储在本软件的安装目录或您指定的数据目录中，请确认您已找到并删除相关文件。</Paragraph>
+        <Title level={5}>八、数据保留与销毁</Title>
+        <Paragraph>8.1 您的数据保留期限完全由您自行决定，本软件不会设置数据自动过期或自动删除机制。</Paragraph>
+        <Paragraph>8.2 如您决定不再使用本软件，可通过卸载程序并手动删除数据库文件来永久销毁所有数据。</Paragraph>
+        <Paragraph>8.3 数据库文件默认存储在本软件的安装目录或您指定的数据目录中，请确认您已找到并删除相关文件。</Paragraph>
 
-        <Title level={5}>八、未成年人保护</Title>
-        <Paragraph>8.1 本软件为通用生产力工具，不专门面向未成年人提供特定服务。</Paragraph>
-        <Paragraph>8.2 如您为未满 14 周岁的未成年人，请在您的父母或其他监护人的陪同下阅读本隐私政策，并在征得监护人同意后使用本软件。</Paragraph>
-        <Paragraph>8.3 如监护人发现未成年人未经同意向我们提供了个人信息，可通过下方联系方式通知我们，以便采取相应措施。但由于我们不收集任何用户数据，此种风险极低。</Paragraph>
+        <Title level={5}>九、未成年人保护</Title>
+        <Paragraph>9.1 本软件为通用生产力工具，不专门面向未成年人提供特定服务。</Paragraph>
+        <Paragraph>9.2 如您为未满 14 周岁的未成年人，请在您的父母或其他监护人的陪同下阅读本隐私政策，并在征得监护人同意后使用本软件。</Paragraph>
+        <Paragraph>9.3 如监护人发现未成年人未经同意向我们提供了个人信息，可通过下方联系方式通知我们，以便采取相应措施。但由于我们不收集任何用户数据，此种风险极低。</Paragraph>
 
-        <Title level={5}>九、隐私保护建议</Title>
+        <Title level={5}>十、隐私保护建议</Title>
         <Paragraph>为最大程度保护您的数据隐私，我们建议：</Paragraph>
         <Paragraph style={{ paddingLeft: 16 }}>1. 请勿将包含敏感信息的数据库文件存放在公共设备、共享文件夹或未加密的云端存储中；</Paragraph>
         <Paragraph style={{ paddingLeft: 16 }}>2. 如涉及高度敏感信息（如身份证号、银行账户、健康信息等），建议对数据库文件进行额外加密；</Paragraph>
         <Paragraph style={{ paddingLeft: 16 }}>3. 为操作系统设置强密码并定期更换，启用屏幕锁，防止未经授权的物理访问；</Paragraph>
         <Paragraph style={{ paddingLeft: 16 }}>4. 如发现数据库文件被非授权访问或泄露，应立即停止使用、删除相关文件，并评估潜在影响。</Paragraph>
 
-        <Title level={5}>十、政策更新</Title>
-        <Paragraph>10.1 本隐私政策可能根据法律法规变化、软件功能更新或行业标准的演进适时调整。</Paragraph>
-        <Paragraph>10.2 更新后的隐私政策将在软件更新公告、设置页面的"法律信息"标签页中同步公示。</Paragraph>
-        <Paragraph>10.3 重大变更（如涉及数据处理方式的实质性改变）将以弹窗或公告形式通知您。</Paragraph>
-        <Paragraph>10.4 您继续使用本软件即视为已阅读并接受更新后的隐私政策。如您不同意修订后的条款，应停止使用本软件并卸载。</Paragraph>
+        <Title level={5}>十一、政策更新</Title>
+        <Paragraph>11.1 本隐私政策可能根据法律法规变化、软件功能更新或行业标准的演进适时调整。</Paragraph>
+        <Paragraph>11.2 更新后的隐私政策将在软件更新公告、设置页面的"法律信息"标签页中同步公示。</Paragraph>
+        <Paragraph>11.3 重大变更（如涉及数据处理方式的实质性改变）将以弹窗或公告形式通知您。</Paragraph>
+        <Paragraph>11.4 您继续使用本软件即视为已阅读并接受更新后的隐私政策。如您不同意修订后的条款，应停止使用本软件并卸载。</Paragraph>
 
-        <Title level={5}>十一、联系方式</Title>
+        <Title level={5}>十二、联系方式</Title>
         <Paragraph>如您对本隐私政策有任何疑问、意见或建议，或需要行使您的相关权利，欢迎通过以下方式联系我们：</Paragraph>
         <Paragraph style={{ paddingLeft: 16 }}><strong>电子邮件：</strong>请通过本软件发布页面或官方渠道获取开发者联系邮箱。</Paragraph>
         <Paragraph style={{ paddingLeft: 16 }}><strong>反馈渠道：</strong>您亦可在软件的设置页面或发布平台的评论区提交反馈。</Paragraph>
         <Paragraph>我们将在收到您的反馈后尽快予以回复。</Paragraph>
 
-        <Title level={5}>十二、法律适用</Title>
-        <Paragraph>12.1 本隐私政策的订立、执行、解释及争议解决均适用中华人民共和国法律。</Paragraph>
-        <Paragraph>12.2 如本隐私政策的任何条款与适用法律相抵触，该条款应视为按法律规定重新解释，其他条款的效力不受影响。</Paragraph>
-        <Paragraph>12.3 如有争议，双方应首先通过友好协商解决；协商不成的，任何一方可向开发者所在地有管辖权的人民法院提起诉讼。</Paragraph>
+        <Title level={5}>十三、法律适用</Title>
+        <Paragraph>13.1 本隐私政策的订立、执行、解释及争议解决均适用中华人民共和国法律。</Paragraph>
+        <Paragraph>13.2 如本隐私政策的任何条款与适用法律相抵触，该条款应视为按法律规定重新解释，其他条款的效力不受影响。</Paragraph>
+        <Paragraph>13.3 如有争议，双方应首先通过友好协商解决；协商不成的，任何一方可向开发者所在地有管辖权的人民法院提起诉讼。</Paragraph>
 
         <Divider />
 
         <Title level={4}>用户协议</Title>
-        <Paragraph type="secondary">更新日期：2026年7月25日</Paragraph>
+        <Paragraph type="secondary">更新日期：2026年8月13日</Paragraph>
         <Paragraph>
           欢迎使用"动态数据登记系统"（以下简称"本软件"）。本软件由个人开发者（以下简称"我方"或"我们"）开发并发布。
           在安装、复制或使用本软件前，请您仔细阅读本用户协议（以下简称"本协议"）。
@@ -1002,55 +1040,69 @@ function Settings() {
         <Paragraph style={{ paddingLeft: 16 }}>（4）第三方的未授权访问（包括物理访问和网络入侵）；</Paragraph>
         <Paragraph style={{ paddingLeft: 16 }}>（5）不可抗力事件（包括但不限于自然灾害、战争、电力中断等）。</Paragraph>
 
-        <Title level={5}>六、免责声明</Title>
-        <Paragraph>6.1 本软件按<strong>"现状"（AS IS）</strong>提供，不附带任何形式的明示或默示担保，包括但不限于对适销性、特定用途适用性、准确性、可靠性或不侵权的担保。</Paragraph>
-        <Paragraph>6.2 我们不保证本软件完全无错误、无缺陷或不中断运行。您应自行承担使用本软件的全部风险。</Paragraph>
-        <Paragraph>6.3 我们不保证本软件满足您的全部需求，您应自行评估本软件是否适合您的特定使用场景。</Paragraph>
-        <Paragraph>6.4 如您所在司法管辖区不允许排除默示担保，则上述免责声明的部分内容可能对您不适用。</Paragraph>
+        <Title level={5}>六、账号与权限</Title>
+        <Paragraph>6.1 本软件内置三种账号角色：<strong>员工（employee）、人事（hr）、管理员（boss）</strong>，各角色拥有不同权限：</Paragraph>
+        <Paragraph style={{ paddingLeft: 16 }}>- <strong>员工：</strong>仅可查看与录入自己创建的数据，数据管理页为只读权限，无法修改或删除他人数据；</Paragraph>
+        <Paragraph style={{ paddingLeft: 16 }}>- <strong>人事（HR）：</strong>可查看全量数据；其删除操作需提交审核，由管理员批准后才会真正执行；</Paragraph>
+        <Paragraph style={{ paddingLeft: 16 }}>- <strong>管理员：</strong>拥有全部管理权限，并负责审核所有待审核的操作。</Paragraph>
+        <Paragraph>6.2 您应妥善保管自己的账号与密码，不得将账号出借或转让给他人。因账号保管不善导致的数据泄露或误操作，由账号持有人自行承担相应责任。</Paragraph>
 
-        <Title level={5}>七、责任限制</Title>
-        <Paragraph>7.1 在法律允许的最大范围内，我方不对因使用或无法使用本软件而产生的任何直接、间接、附带、特殊、惩罚性或后果性损失承担责任，包括但不限于：</Paragraph>
+        <Title level={5}>七、AI 分析功能</Title>
+        <Paragraph>7.1 AI 分析为本软件的可选扩展功能，需您自行配置 AI 模型服务商的 API Key 后方可使用。</Paragraph>
+        <Paragraph>7.2 使用 AI 分析即表示您知悉并同意：为完成分析，本软件会将<strong>相关数据摘要</strong>发送至您所配置的第三方 AI 服务商。涉及敏感、机密或受法律保护的信息，请谨慎使用本功能。</Paragraph>
+        <Paragraph>7.3 <strong>数据范围：</strong>AI 可分析的数据范围与您的账号权限一致——员工仅能分析自己创建的数据，HR 与管理员可分析全量数据。</Paragraph>
+        <Paragraph>7.4 <strong>记录隔离：</strong>分析报告与对话记录按账号隔离存储于本机，不同账号之间互不可见，您可随时清除。</Paragraph>
+        <Paragraph>7.5 因第三方 AI 服务商自身原因（包括但不限于服务中断、响应内容偏差、数据保留政策）产生的问题，我方不承担相关责任。</Paragraph>
+
+        <Title level={5}>八、免责声明</Title>
+        <Paragraph>8.1 本软件按<strong>"现状"（AS IS）</strong>提供，不附带任何形式的明示或默示担保，包括但不限于对适销性、特定用途适用性、准确性、可靠性或不侵权的担保。</Paragraph>
+        <Paragraph>8.2 我们不保证本软件完全无错误、无缺陷或不中断运行。您应自行承担使用本软件的全部风险。</Paragraph>
+        <Paragraph>8.3 我们不保证本软件满足您的全部需求，您应自行评估本软件是否适合您的特定使用场景。</Paragraph>
+        <Paragraph>8.4 如您所在司法管辖区不允许排除默示担保，则上述免责声明的部分内容可能对您不适用。</Paragraph>
+
+        <Title level={5}>九、责任限制</Title>
+        <Paragraph>9.1 在法律允许的最大范围内，我方不对因使用或无法使用本软件而产生的任何直接、间接、附带、特殊、惩罚性或后果性损失承担责任，包括但不限于：</Paragraph>
         <Paragraph style={{ paddingLeft: 16 }}>- 数据丢失或损坏；</Paragraph>
         <Paragraph style={{ paddingLeft: 16 }}>- 业务中断或利润损失；</Paragraph>
         <Paragraph style={{ paddingLeft: 16 }}>- 商誉损失或声誉损害；</Paragraph>
         <Paragraph style={{ paddingLeft: 16 }}>- 替代产品或服务的采购成本。</Paragraph>
-        <Paragraph>7.2 即使我方已被告知此类损失的可能性，上述责任限制仍然适用。</Paragraph>
-        <Paragraph>7.3 如适用法律不允许对某些类型的损失限制责任，则上述限制的部分内容可能对您不适用。在此情况下，我方的责任应在法律允许的最小范围内确定。</Paragraph>
+        <Paragraph>9.2 即使我方已被告知此类损失的可能性，上述责任限制仍然适用。</Paragraph>
+        <Paragraph>9.3 如适用法律不允许对某些类型的损失限制责任，则上述限制的部分内容可能对您不适用。在此情况下，我方的责任应在法律允许的最小范围内确定。</Paragraph>
 
-        <Title level={5}>八、赔偿</Title>
+        <Title level={5}>十、赔偿</Title>
         <Paragraph>您同意赔偿、辩护并使我方免受因以下原因引起的任何第三方索赔、诉讼、损害赔偿、损失、费用或开支（包括合理的律师费）：</Paragraph>
         <Paragraph style={{ paddingLeft: 16 }}>（1）您违反本协议的任何条款；</Paragraph>
         <Paragraph style={{ paddingLeft: 16 }}>（2）您使用本软件的行为侵犯了任何第三方的合法权益；</Paragraph>
         <Paragraph style={{ paddingLeft: 16 }}>（3）您存储于本软件中的数据内容违反法律法规或侵犯第三方权利。</Paragraph>
 
-        <Title level={5}>九、软件更新</Title>
-        <Paragraph>9.1 我们保留随时发布本软件更新版本的权利，更新可能包括功能增强、性能优化、安全修复、错误更正或界面调整。</Paragraph>
-        <Paragraph>9.2 我们保留停止维护或终止本软件后续版本开发的权利，但不会主动删除您设备上已安装的版本。</Paragraph>
-        <Paragraph>9.3 您可选择安装更新版本或继续使用当前版本。我们不承诺对旧版本提供持续的技术支持或安全补丁。</Paragraph>
-        <Paragraph>9.4 本协议适用于本软件的所有版本，除非新版本附带了单独的协议。</Paragraph>
+        <Title level={5}>十一、软件更新</Title>
+        <Paragraph>11.1 我们保留随时发布本软件更新版本的权利，更新可能包括功能增强、性能优化、安全修复、错误更正或界面调整。</Paragraph>
+        <Paragraph>11.2 我们保留停止维护或终止本软件后续版本开发的权利，但不会主动删除您设备上已安装的版本。</Paragraph>
+        <Paragraph>11.3 您可选择安装更新版本或继续使用当前版本。我们不承诺对旧版本提供持续的技术支持或安全补丁。</Paragraph>
+        <Paragraph>11.4 本协议适用于本软件的所有版本，除非新版本附带了单独的协议。</Paragraph>
 
-        <Title level={5}>十、协议终止</Title>
-        <Paragraph>10.1 本协议自您首次使用本软件之日起生效，持续有效直至终止。</Paragraph>
-        <Paragraph>10.2 您可以通过卸载本软件并永久删除与本软件相关的所有文件来随时终止本协议。</Paragraph>
-        <Paragraph>10.3 如您违反本协议的任何条款，我方保留立即终止本协议的权利。终止后，您应立即停止使用本软件，卸载并删除所有相关文件。</Paragraph>
-        <Paragraph>10.4 协议终止不影响双方在终止前已产生的权利义务，也不影响依其性质应在终止后继续有效的条款（包括但不限于知识产权、免责声明、责任限制等条款）。</Paragraph>
+        <Title level={5}>十二、协议终止</Title>
+        <Paragraph>12.1 本协议自您首次使用本软件之日起生效，持续有效直至终止。</Paragraph>
+        <Paragraph>12.2 您可以通过卸载本软件并永久删除与本软件相关的所有文件来随时终止本协议。</Paragraph>
+        <Paragraph>12.3 如您违反本协议的任何条款，我方保留立即终止本协议的权利。终止后，您应立即停止使用本软件，卸载并删除所有相关文件。</Paragraph>
+        <Paragraph>12.4 协议终止不影响双方在终止前已产生的权利义务，也不影响依其性质应在终止后继续有效的条款（包括但不限于知识产权、免责声明、责任限制等条款）。</Paragraph>
 
-        <Title level={5}>十一、协议修改</Title>
-        <Paragraph>11.1 我们保留随时修改或更新本协议的权利。</Paragraph>
-        <Paragraph>11.2 修改后的协议将在软件更新公告、设置页面的"法律信息"标签页中同步公示。重大修改可能以弹窗或其他显著方式通知您。</Paragraph>
-        <Paragraph>11.3 您在协议修改后继续使用本软件，即视为您已接受修改后的条款。如您不同意修改后的条款，应停止使用本软件并卸载。</Paragraph>
+        <Title level={5}>十三、协议修改</Title>
+        <Paragraph>13.1 我们保留随时修改或更新本协议的权利。</Paragraph>
+        <Paragraph>13.2 修改后的协议将在软件更新公告、设置页面的"法律信息"标签页中同步公示。重大修改可能以弹窗或其他显著方式通知您。</Paragraph>
+        <Paragraph>13.3 您在协议修改后继续使用本软件，即视为您已接受修改后的条款。如您不同意修改后的条款，应停止使用本软件并卸载。</Paragraph>
 
-        <Title level={5}>十二、完整协议</Title>
-        <Paragraph>12.1 本协议（连同随附的隐私政策）构成您与我方之间关于本软件的完整协议，取代之前所有口头或书面的沟通、陈述、谈判或协议。</Paragraph>
-        <Paragraph>12.2 如本协议的任何条款被有管辖权的法院认定为无效或不可执行，该条款应在法律允许的最大范围内执行，且其他条款的效力不受影响。</Paragraph>
-        <Paragraph>12.3 我方未能行使或执行本协议中的任何权利或条款，不应视为对该权利或条款的放弃。</Paragraph>
+        <Title level={5}>十四、完整协议</Title>
+        <Paragraph>14.1 本协议（连同随附的隐私政策）构成您与我方之间关于本软件的完整协议，取代之前所有口头或书面的沟通、陈述、谈判或协议。</Paragraph>
+        <Paragraph>14.2 如本协议的任何条款被有管辖权的法院认定为无效或不可执行，该条款应在法律允许的最大范围内执行，且其他条款的效力不受影响。</Paragraph>
+        <Paragraph>14.3 我方未能行使或执行本协议中的任何权利或条款，不应视为对该权利或条款的放弃。</Paragraph>
 
-        <Title level={5}>十三、法律适用与争议解决</Title>
-        <Paragraph>13.1 本协议的订立、效力、解释、履行及争议解决均适用中华人民共和国法律。</Paragraph>
-        <Paragraph>13.2 您与我方之间因本协议产生的任何争议或纠纷，双方应首先通过友好协商解决。</Paragraph>
-        <Paragraph>13.3 如协商不成，任何一方可将争议提交至开发者所在地有管辖权的人民法院通过诉讼解决。</Paragraph>
+        <Title level={5}>十五、法律适用与争议解决</Title>
+        <Paragraph>15.1 本协议的订立、效力、解释、履行及争议解决均适用中华人民共和国法律。</Paragraph>
+        <Paragraph>15.2 您与我方之间因本协议产生的任何争议或纠纷，双方应首先通过友好协商解决。</Paragraph>
+        <Paragraph>15.3 如协商不成，任何一方可将争议提交至开发者所在地有管辖权的人民法院通过诉讼解决。</Paragraph>
 
-        <Title level={5}>十四、联系方式</Title>
+        <Title level={5}>十六、联系方式</Title>
         <Paragraph>如您对本协议有任何疑问、意见或需要法律方面的澄清，欢迎通过以下方式联系我们：</Paragraph>
         <Paragraph style={{ paddingLeft: 16 }}><strong>电子邮件：</strong>请通过本软件发布页面或官方渠道获取开发者联系邮箱。</Paragraph>
         <Paragraph style={{ paddingLeft: 16 }}><strong>在线反馈：</strong>您亦可在软件的设置页面或发布平台的评论区提交反馈。</Paragraph>

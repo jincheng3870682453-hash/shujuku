@@ -14,8 +14,11 @@ a = Analysis(
     hiddenimports=[
         'flask', 'openpyxl', 'pymysql', 'waitress', 'gevent',
         'cryptography', 'requests', 'dotenv', 'webview',
+        'webview.platforms.edgechromium',
         'backend.ai_client', 'backend.database', 'backend.auth',
         'backend.export', 'backend.import_data', 'backend.audit',
+        '_cffi_backend', 'cffi', 'cffi.api',
+        'pythonnet', 'clr_loader', 'clr_loader.ffi',
     ],
     hookspath=[],
     hooksconfig={},

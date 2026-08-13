@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
 import { Layout, Menu, Button, Typography, Dropdown, Avatar, Badge, App } from 'antd';
 import {
@@ -18,6 +18,7 @@ import {
   SafetyOutlined,
 } from '@ant-design/icons';
 import { authApi } from '../api/auth';
+import type { UserThemePayload } from '../api/auth';
 import { auditApi } from '../api/audit';
 import type { MenuProps } from 'antd';
 
@@ -28,9 +29,54 @@ interface UserInfo {
   id?: number;
   username?: string;
   role?: string;
+  permissions?: string[];
 }
 
-const menuItems: MenuProps['items'] = [
+/** 每个菜单项所需权限；未列出的菜单项视为所有登录用户可见 */
+const MENU_PERMISSION: Record<string, string> = {
+  '/stats':        'view_stats',
+  '/stats/charts': 'view_stats',
+  '/database':     'view_data',
+  '/columns':      'view_structure',
+  '/audit':        'audit_center',
+  '/logs':         'view_logs',
+  '/users':        'manage_users',
+  '/backup':       'reset_database',
+  '/ai':           'view_data',
+  '/settings':     'customize_theme',
+};
+
+type MenuItem = NonNullable<MenuProps['items']>[number];
+
+/** 根据权限过滤菜单项（子菜单全被过滤时整组隐藏） */
+function filterMenuByPermissions(
+  items: MenuItem[] | undefined,
+  permissions: string[],
+): MenuItem[] {
+  if (!items) return [];
+  const result: MenuItem[] = [];
+  for (const item of items) {
+    if (!item) continue;
+    // 仅对带 children 的普通菜单项递归过滤，divider 等特殊类型直接跳过
+    if ('children' in item && Array.isArray(item.children)) {
+      const filteredChildren = filterMenuByPermissions(
+        item.children as MenuItem[],
+        permissions,
+      );
+      if (filteredChildren.length > 0) {
+        result.push({ ...item, children: filteredChildren } as MenuItem);
+      }
+    } else if (item.key !== undefined && item.key !== null) {
+      const required = MENU_PERMISSION[String(item.key)];
+      if (!required || permissions.includes(required)) {
+        result.push(item);
+      }
+    }
+  }
+  return result;
+}
+
+const rawMenuItems: MenuProps['items'] = [
   {
     key: 'stats-group',
     icon: <BarChartOutlined />,
@@ -73,6 +119,62 @@ function saveSidebarOpenKeys(keys: string[]) {
   } catch {}
 }
 
+const DEFAULT_THEME_COLORS = {
+  primaryColor: '#5e6ad2', backgroundColor: '#08090a', cardColor: '#0f1011', textColor: '#e5e5e6', cardOpacity: 80,
+};
+const DEFAULT_BG_GRADIENT = [
+  'radial-gradient(ellipse 80% 50% at 20% 0%, rgba(124,58,237,0.12), transparent)',
+  'radial-gradient(ellipse 60% 40% at 80% 100%, rgba(59,130,246,0.08), transparent)',
+  '#0A0A0F',
+].join(',');
+
+/**
+ * 登录后应用该用户在后端保存的自定义背景/主题。
+ * 切换用户时会整体覆盖为当前用户自己的背景；无自定义时重置为系统默认。
+ */
+function applySavedUserTheme(saved: UserThemePayload | null | undefined) {
+  const root = document.documentElement;
+  // 配色
+  const theme = { ...DEFAULT_THEME_COLORS, ...(saved?.theme || {}) } as Record<string, string | number>;
+  root.style.setProperty('--accent-default', String(theme.primaryColor));
+  root.style.setProperty('--surface-root', String(theme.backgroundColor));
+  root.style.setProperty('--surface-card', String(theme.cardColor));
+  root.style.setProperty('--text-primary', String(theme.textColor));
+  localStorage.setItem('theme', JSON.stringify(theme));
+  localStorage.setItem('ui_colors', JSON.stringify(theme));
+  // 玻璃透明度
+  const alpha = saved?.glass_alpha ?? Number(theme.cardOpacity) / 100;
+  root.style.setProperty('--tx-glass-alpha', String(alpha));
+  localStorage.setItem('glass_alpha', String(alpha));
+  // 背景质感
+  const texture = saved?.texture || 'glass';
+  root.setAttribute('data-texture', texture);
+  root.setAttribute('data-theme', texture);
+  localStorage.setItem('dashboard_texture', texture);
+  // 背景图（玻璃/透明质感下展示）
+  const bg = saved?.bg_image || null;
+  if (bg) {
+    localStorage.setItem('bg_image', bg);
+  } else {
+    localStorage.removeItem('bg_image');
+  }
+  document.body.style.background = '';
+  if (texture === 'glass' || texture === 'transparent') {
+    document.body.style.background = bg ? `url(${bg}) center / cover no-repeat fixed` : DEFAULT_BG_GRADIENT;
+  }
+  // 霓虹品牌色
+  const neon = saved?.neon_accent || 'purple';
+  if (neon === 'cyan') {
+    root.setAttribute('data-neon-accent', 'cyan');
+  } else {
+    root.removeAttribute('data-neon-accent');
+  }
+  localStorage.setItem('neon_accent', neon);
+  // 淡入过渡
+  root.classList.add('texture-transitioning');
+  setTimeout(() => root.classList.remove('texture-transitioning'), 150);
+}
+
 export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [user, setUser] = useState<UserInfo | null>(null);
@@ -82,12 +184,25 @@ export default function AppLayout() {
   const location = useLocation();
   const { message } = App.useApp();
 
-  // 获取用户信息
+  // 获取用户信息（含权限列表与自定义背景）
   useEffect(() => {
     authApi.me().then(res => {
-      setUser({ id: res.user_id, username: res.username, role: res.role });
+      setUser({
+        id: res.user_id,
+        username: res.username,
+        role: res.role,
+        permissions: Array.isArray(res.permissions) ? res.permissions : [],
+      });
+      // 应用该用户自己的背景/主题（切换用户即切换背景）
+      applySavedUserTheme(res.theme);
     }).catch(() => navigate('/login'));
   }, [navigate]);
+
+  // 按权限过滤侧边栏菜单
+  const menuItems = useMemo(
+    () => filterMenuByPermissions(rawMenuItems, user?.permissions ?? []),
+    [user?.permissions],
+  );
 
   // 获取待审核数量
   useEffect(() => {
@@ -114,7 +229,7 @@ export default function AppLayout() {
         <div style={{ padding: '4px 0' }}>
           <div style={{ color: 'var(--text-primary)', fontWeight: 500, fontSize: 14 }}>{user?.username || '用户'}</div>
           <div style={{ color: 'var(--text-tertiary)', fontSize: 12, marginTop: 2 }}>
-            {user?.role === 'boss' ? '管理员' : '普通用户'}
+            {user?.role === 'boss' ? '管理员' : user?.role === 'hr' ? 'HR' : '普通用户'}
           </div>
         </div>
       ),
@@ -242,7 +357,7 @@ export default function AppLayout() {
                     {user?.username || '用户'}
                   </div>
                   <div style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>
-                    {user?.role === 'boss' ? '管理员' : '普通用户'}
+                    {user?.role === 'boss' ? '管理员' : user?.role === 'hr' ? 'HR' : '普通用户'}
                   </div>
                 </div>
               </div>

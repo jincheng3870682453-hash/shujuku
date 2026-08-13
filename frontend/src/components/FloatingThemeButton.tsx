@@ -1,9 +1,26 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Button, Drawer, Form, ColorPicker, Space, Typography, Divider, App } from 'antd';
 import { BgColorsOutlined, ReloadOutlined } from '@ant-design/icons';
+import { authApi } from '../api/auth';
 import type { Color } from 'antd/es/color-picker';
 
 const { Text } = Typography;
+
+/** 将当前背景/主题同步保存到当前登录用户（按用户隔离存储） */
+function syncUserThemeToServer() {
+  try {
+    let savedTheme: Record<string, string | number> = {};
+    const raw = localStorage.getItem('theme');
+    if (raw) savedTheme = JSON.parse(raw);
+    authApi.saveUserTheme({
+      theme: savedTheme,
+      texture: localStorage.getItem('dashboard_texture') || 'glass',
+      glass_alpha: Number(localStorage.getItem('glass_alpha') || 0.8),
+      neon_accent: localStorage.getItem('neon_accent') || 'purple',
+      bg_image: localStorage.getItem('bg_image'),
+    }).catch(() => { /* 静默失败，不影响本地使用 */ });
+  } catch { /* 忽略非关键错误 */ }
+}
 
 interface ThemeColors {
   primaryColor: string; backgroundColor: string; cardColor: string; textColor: string;
@@ -30,12 +47,19 @@ export default function FloatingThemeButton() {
   const [open, setOpen] = useState(false);
   const [theme, setTheme] = useState<ThemeColors>(loadTheme);
   const { message } = App.useApp();
+  // 颜色选择器拖动时频繁触发，防抖同步到后端
+  const saveTimer = useRef<number | null>(null);
+  const scheduleSave = () => {
+    if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(syncUserThemeToServer, 500);
+  };
 
   const handleChange = (key: keyof ThemeColors, hex: string) => {
     const updated = { ...theme, [key]: hex };
     setTheme(updated);
     applyTheme(updated);
     localStorage.setItem('theme', JSON.stringify(updated));
+    scheduleSave();
   };
 
   const handleReset = () => {
@@ -43,6 +67,7 @@ export default function FloatingThemeButton() {
     applyTheme(DEFAULT_THEME);
     localStorage.setItem('theme', JSON.stringify(DEFAULT_THEME));
     message.success('已恢复默认配色');
+    syncUserThemeToServer();
   };
 
   return (

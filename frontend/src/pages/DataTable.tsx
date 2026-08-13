@@ -3,7 +3,7 @@ import {
   Card, Table, Button, Input, Modal, Select, DatePicker, InputNumber, Popconfirm, Tag, Space, message, Typography, Spin, Empty, Upload, Descriptions, Divider, Tooltip,
 } from 'antd';
 import {
-  PlusOutlined, DeleteOutlined, ReloadOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, InboxOutlined, DashboardOutlined, ClearOutlined, ExclamationCircleOutlined, DatabaseOutlined, CheckOutlined, CloseOutlined, PaperClipOutlined, FileOutlined,
+  PlusOutlined, DeleteOutlined, ReloadOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, InboxOutlined, DashboardOutlined, ClearOutlined, ExclamationCircleOutlined, DatabaseOutlined, CheckOutlined, CloseOutlined, PaperClipOutlined, FileOutlined, EyeOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
@@ -117,11 +117,12 @@ function FileUpload({ value, onChange }: { value: unknown; onChange: (value: str
 
 // ===================== 内联编辑单元格（展示模式） =====================
 function InlineEditCell({
-  value, fieldType, fieldOptions, onSave, rowId, fieldKey,
+  value, fieldType, fieldOptions, onSave, rowId, fieldKey, readonly,
 }: {
   value: unknown; rowId: number; fieldKey: string;
   fieldType: FieldType; fieldOptions: { label: string; value: string }[] | null;
   onSave: (rowId: number, fieldKey: string, value: unknown) => void;
+  readonly?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState<unknown>(value);
@@ -148,7 +149,12 @@ function InlineEditCell({
 
   const handleCancel = useCallback(() => { setEditValue(value); setEditing(false); }, [value]);
 
-  if (editing) {
+  const cellStyle: React.CSSProperties = { minHeight: 24, cursor: readonly ? 'default' : 'pointer', padding: '4px 0' };
+  const cellEditProps = readonly
+    ? { style: cellStyle }
+    : { onDoubleClick: () => setEditing(true), style: cellStyle, title: '双击编辑' };
+
+  if (editing && !readonly) {
     switch (safeType) {
       case 'text': case 'textarea':
         return <Input ref={inputRef} value={(editValue as string) ?? ''} onChange={e => setEditValue(e.target.value)} onPressEnter={handleConfirm} onBlur={handleConfirm} onKeyDown={e => { if (e.key === 'Escape') handleCancel(); }} size="small" style={{ width: '100%' }} suffix={<CheckOutlined style={{ color: 'var(--success)' }} />} />;
@@ -187,20 +193,19 @@ function InlineEditCell({
     }
   }
 
-  const cellStyle: React.CSSProperties = { minHeight: 24, cursor: 'pointer', padding: '4px 0' };
-  // 展示模式
-  if (value === null || value === undefined) return <div onDoubleClick={() => setEditing(true)} style={cellStyle} title="双击编辑"><Text type="secondary" style={{ fontSize: 12 }}>—</Text></div>;
+  // 展示模式（只读模式下不可双击编辑）
+  if (value === null || value === undefined) return <div {...cellEditProps}><Text type="secondary" style={{ fontSize: 12 }}>—</Text></div>;
   switch (safeType) {
-    case 'date': return <div onDoubleClick={() => setEditing(true)} style={cellStyle}>{dayjs(value as string).format('YYYY-MM-DD HH:mm')}</div>;
-    case 'boolean': return <div onDoubleClick={() => setEditing(true)} style={cellStyle}>{value ? <Tag color="green">是</Tag> : <Tag>否</Tag>}</div>;
+    case 'date': return <div {...cellEditProps}>{dayjs(value as string).format('YYYY-MM-DD HH:mm')}</div>;
+    case 'boolean': return <div {...cellEditProps}>{value ? <Tag color="green">是</Tag> : <Tag>否</Tag>}</div>;
     case 'select': {
       // 查找 value 对应的 label 显示
       const matched = safeOptions.find(o => o.value === value);
       const displayText = matched ? matched.label : (value ?? '');
-      return <div onDoubleClick={() => setEditing(true)} style={cellStyle} title="双击编辑">{displayText ? String(displayText) : <Text type="secondary" style={{ fontSize: 12 }}>—</Text>}</div>;
+      return <div {...cellEditProps}>{displayText ? String(displayText) : <Text type="secondary" style={{ fontSize: 12 }}>—</Text>}</div>;
     }
-    case 'file': return <div onDoubleClick={() => setEditing(true)} style={cellStyle}><FileFieldDisplay value={value} /></div>;
-    default: return <div onDoubleClick={() => setEditing(true)} style={cellStyle}>{String(value)}</div>;
+    case 'file': return <div {...cellEditProps}><FileFieldDisplay value={value} /></div>;
+    default: return <div {...cellEditProps}>{String(value)}</div>;
   }
 }
 
@@ -234,7 +239,7 @@ function NewRowCell({ fieldType, fieldOptions, value, onChange }: {
 function DataTable() {
   const queryClient = useQueryClient();
   const [messageApi, contextHolder] = message.useMessage();
-  const { isAdmin } = useRole();
+  const { isAdmin, isEmployee } = useRole();
 
   const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(20);
   const [keyword, setKeyword] = useState(''); const [searchInput, setSearchInput] = useState('');
@@ -508,21 +513,24 @@ function DataTable() {
             fieldType={safeType}
             fieldOptions={safeOptions}
             onSave={handleSaveEdit}
+            readonly={isEmployee}
           />
         ),
       };
     });
-    cols.push({
-      title: <span>操作</span>, key: 'action', width: 80, fixed: 'right' as const,
-      render: (_: unknown, rec: RowData) => (
-        <Popconfirm title={<span>确定要删除这条记录吗？</span>} onConfirm={() => deleteRowMutation.mutate(rec.id)} okText="删除" cancelText="取消">
-          <Button type="text" size="small" danger icon={<DeleteOutlined />} />
-        </Popconfirm>
-      ),
-    } as any);
+    if (!isEmployee) {
+      cols.push({
+        title: <span>操作</span>, key: 'action', width: 80, fixed: 'right' as const,
+        render: (_: unknown, rec: RowData) => (
+          <Popconfirm title={<span>确定要删除这条记录吗？</span>} onConfirm={() => deleteRowMutation.mutate(rec.id)} okText="删除" cancelText="取消">
+            <Button type="text" size="small" danger icon={<DeleteOutlined />} />
+          </Popconfirm>
+        ),
+      } as any);
+    }
     console.log('[DataTable] total columns generated:', cols.length);
     return cols as ColumnsType<RowData>;
-  }, [columns, deleteRowMutation, handleSaveEdit]);
+  }, [columns, deleteRowMutation, handleSaveEdit, isEmployee]);
 
   const isLoading = columnsLoading || rowsLoading;
 
@@ -546,14 +554,14 @@ function DataTable() {
           <Space wrap>
             <Input placeholder="搜索…" prefix={<SearchOutlined />} value={searchInput} onChange={handleSearchChange} allowClear style={{ width: 200 }} />
             <Button icon={<ReloadOutlined />} onClick={() => { queryClient.invalidateQueries({ queryKey: ['rows'] }); queryClient.invalidateQueries({ queryKey: ['columns'] }); }}>刷新</Button>
-            <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(f) => { handleFileSelected(f); return false; }}><Button icon={<UploadOutlined />} loading={importLoading}>导入</Button></Upload>
+            {!isEmployee && <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(f) => { handleFileSelected(f); return false; }}><Button icon={<UploadOutlined />} loading={importLoading}>导入</Button></Upload>}
             <Button icon={<DownloadOutlined />} onClick={() => exportMutation.mutate()} loading={exportMutation.isPending}>导出</Button>
-            {isAdmin && totalAll > 0 && <Popconfirm title="确定要清空所有数据吗？" onConfirm={() => clearAllRowsMutation.mutate()}><Button icon={<ClearOutlined />} loading={clearAllRowsMutation.isPending}>清空数据</Button></Popconfirm>}
-            {isAdmin && <Button icon={<DatabaseOutlined />} onClick={() => setResetDbVisible(true)}>重置</Button>}
+            {!isEmployee && isAdmin && totalAll > 0 && <Popconfirm title="确定要清空所有数据吗？" onConfirm={() => clearAllRowsMutation.mutate()}><Button icon={<ClearOutlined />} loading={clearAllRowsMutation.isPending}>清空数据</Button></Popconfirm>}
+            {!isEmployee && isAdmin && <Button icon={<DatabaseOutlined />} onClick={() => setResetDbVisible(true)}>重置</Button>}
             <Button icon={<DashboardOutlined />} onClick={() => setOverviewVisible(true)}>总览</Button>
           </Space>
         </div>
-        {columns.length > 0 && (
+        {!isEmployee && columns.length > 0 && (
           <div style={{ marginBottom: 16, padding: '16px 20px', background: '#0f1011', borderRadius: 10, border: '0.5px dashed #383b3f' }}>
             <Dragger accept=".xlsx,.xls" showUploadList={false} beforeUpload={(f) => { handleFileSelected(f); return false; }}
               style={{ padding: '8px 0', background: 'transparent' }}>
@@ -584,7 +592,11 @@ function DataTable() {
               }}
               footer={() => (
                 <div style={{ background: 'var(--surface-obsidian)', borderRadius: 8, padding: '10px 6px' }}>
-                  {isAdding ? (
+                  {isEmployee ? (
+                    <div style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: 12 }}>
+                      <EyeOutlined style={{ marginRight: 6 }} />当前账号为只读权限，仅可查看数据
+                    </div>
+                  ) : isAdding ? (
                     <Table
                       dataSource={[{ id: -1, ...newRowDataRef.current }]}
                       rowKey={() => 'new-row'}

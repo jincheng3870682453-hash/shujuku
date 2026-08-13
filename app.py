@@ -16,6 +16,7 @@ import hashlib
 import secrets
 import json
 import shutil
+import traceback
 from collections import Counter
 from functools import wraps
 from datetime import datetime
@@ -200,6 +201,10 @@ def is_user_audited(user_id):
     row = db.fetch_one("SELECT global_audit FROM users WHERE id = ?", (user_id,))
     return bool(row['global_audit']) if row else False
 
+def can_view_all_rows(role):
+    """boss 与 hr 属于管理角色，可查看/管理全部数据；员工仅能操作自己创建的数据"""
+    return role in ('boss', 'hr')
+
 def require_perm(perm):
     def decorator(f):
         @wraps(f)
@@ -232,6 +237,19 @@ def require_role(*roles):
             return f(*args, **kwargs)
         return decorated
     return decorator
+
+def require_login(f):
+    """仅校验登录状态的装饰器：未登录返回 401，并填充 g.current_* 供日志使用"""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({'error': '请先登录'}), 401
+        g.current_user_id = user_id
+        g.current_username = session.get('username', '')
+        g.current_role = session.get('role', '')
+        return f(*args, **kwargs)
+    return decorated
 
 def log_operation(action, target_type='', target_id='', detail=''):
     try:
@@ -289,7 +307,7 @@ def init_db():
     db = get_adapter()
     ts = db.get_current_timestamp_sql()
     tables = [
-        f"CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'employee', permissions TEXT DEFAULT '[]', global_audit INTEGER DEFAULT 0, created_at DATETIME DEFAULT ({ts}))",
+        f"CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'employee', permissions TEXT DEFAULT '[]', global_audit INTEGER DEFAULT 0, theme TEXT DEFAULT NULL, created_at DATETIME DEFAULT ({ts}))",
         "CREATE TABLE IF NOT EXISTS columns_meta (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL, label TEXT NOT NULL, field_type TEXT NOT NULL DEFAULT 'text', options TEXT, position INTEGER DEFAULT 0)",
         "CREATE TABLE IF NOT EXISTS rows_data (id INTEGER PRIMARY KEY AUTOINCREMENT)",
         f"CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, username TEXT, action TEXT, target_table TEXT, target_id TEXT, old_value TEXT, new_value TEXT, created_at DATETIME DEFAULT ({ts}))",
@@ -297,6 +315,7 @@ def init_db():
         f"CREATE TABLE IF NOT EXISTS operations_log (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, username TEXT, role TEXT, action TEXT, target_type TEXT, target_id TEXT, detail TEXT, created_at DATETIME DEFAULT ({ts}))",
         f"CREATE TABLE IF NOT EXISTS backups (id INTEGER PRIMARY KEY AUTOINCREMENT, filename TEXT UNIQUE, size_bytes INTEGER, created_at DATETIME DEFAULT ({ts}))",
         f"CREATE TABLE IF NOT EXISTS system_config (`key` VARCHAR(255) PRIMARY KEY, `value` TEXT NOT NULL, updated_at DATETIME DEFAULT ({ts}))",
+        f"CREATE TABLE IF NOT EXISTS ai_analysis_history (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, report TEXT, chat_history TEXT, created_at DATETIME DEFAULT ({ts}), updated_at DATETIME DEFAULT ({ts}))",
     ]
     for t in tables:
         converted = _convert_sql_for_engine(t)
@@ -315,6 +334,18 @@ def init_db():
             print('[INIT] 自动添加系统列: _created_by', flush=True)
         except Exception as e:
             print(f'[INIT] 添加系统列 _created_by 失败: {e}', flush=True)
+    # ── 自动补齐 users 表中的 theme 字段（用于按用户存储自定义背景）──
+    try:
+        user_cols = db.get_table_columns('users')
+        user_col_names = {r['name'] for r in user_cols}
+    except Exception:
+        user_col_names = set()
+    if 'theme' not in user_col_names:
+        try:
+            db.execute_query("ALTER TABLE users ADD COLUMN theme TEXT DEFAULT NULL")
+            print('[INIT] 自动添加系统列: users.theme', flush=True)
+        except Exception as e:
+            print(f'[INIT] 添加系统列 users.theme 失败: {e}', flush=True)
     # ── 自动补齐 rows_data 中缺失的动态列（通过适配层，兼容 SQLite / MySQL）──
     try:
         defined_cols = db.fetch_all("SELECT name, field_type FROM columns_meta ORDER BY position ASC")
@@ -437,12 +468,24 @@ def convert_field_value(raw, field_type: str):
     elif ft == 'boolean':
         if isinstance(raw, bool):
             return 1 if raw else 0, None
-        s = str(raw).lower()
-        return 1 if s in ('1', 'true', 'yes', 'on', '是') else 0, None
+        s = str(raw).strip().lower()
+        # 与导入智能识别的布尔词表保持完全一致，避免 "y/对/有" 等被误存为 0
+        if s in ('1', 'true', 'yes', 'y', 'on', '是', '对', '正确', '有'):
+            return 1, None
+        if s in ('0', 'false', 'no', 'n', 'off', '否', '错', '错误', '无'):
+            return 0, None
+        return 0, None
+    elif ft == 'date':
+        # 日期时间对象格式化为友好字符串，避免出现 "00:00:00" 尾巴
+        if isinstance(raw, datetime):
+            if raw.hour == 0 and raw.minute == 0 and raw.second == 0:
+                return raw.strftime('%Y-%m-%d'), None
+            return raw.strftime('%Y-%m-%d %H:%M:%S'), None
+        return str(raw), None
     elif ft == 'file':
         return (json.dumps(raw, ensure_ascii=False) if isinstance(raw, dict) else str(raw)), None
     else:
-        # text / date / select / textarea
+        # text / select / textarea
         return str(raw), None
 
 def _detect_real_header_row(ws, start_row=1):
@@ -511,8 +554,29 @@ def api_me():
     except:
         perms = []
     db = get_db()
-    row = db.fetch_one("SELECT COALESCE(global_audit, 0) AS global_audit FROM users WHERE id = ?", (user_id,))
-    return jsonify({'logged_in': True, 'user_id': user_id, 'username': session.get('username', ''), 'role': session.get('role', ''), 'permissions': perms, 'global_audit': bool(row['global_audit']) if row else False})
+    row = db.fetch_one("SELECT COALESCE(global_audit, 0) AS global_audit, theme FROM users WHERE id = ?", (user_id,))
+    theme = None
+    if row and row.get('theme'):
+        try:
+            theme = json.loads(row['theme'])
+        except Exception:
+            theme = None
+    return jsonify({'logged_in': True, 'user_id': user_id, 'username': session.get('username', ''), 'role': session.get('role', ''), 'permissions': perms, 'global_audit': bool(row['global_audit']) if row else False, 'theme': theme})
+
+@app.route('/api/theme', methods=['PUT'])
+@require_login
+def api_save_theme():
+    """保存当前登录用户的自定义背景/主题（按用户隔离存储）"""
+    data = request.get_json(force=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({'error': '参数格式错误'}), 400
+    # 限制字段范围，避免写入无关数据
+    allowed_keys = {'theme', 'texture', 'glass_alpha', 'neon_accent', 'bg_image'}
+    payload = {k: data[k] for k in allowed_keys if k in data}
+    db = get_db()
+    db.execute_query("UPDATE users SET theme = ? WHERE id = ?", (json.dumps(payload, ensure_ascii=False), g.current_user_id))
+    log_operation('保存自定义背景', target_type='users', target_id=str(g.current_user_id))
+    return jsonify({'message': '已保存', 'theme': payload})
 
 # ──────────────────────── 列管理 ────────────────────────
 @app.route('/api/columns', methods=['GET', 'POST'])
@@ -750,7 +814,7 @@ def api_list_rows():
     username = session.get('username', '')
     where_clause = ""
     where_params = []
-    if role != 'boss':
+    if not can_view_all_rows(role):
         where_clause = " WHERE _created_by = ?"
         where_params = [username]
     count_row = db.fetch_one(f"SELECT COUNT(*) AS cnt FROM rows_data" + where_clause, tuple(where_params))
@@ -766,7 +830,6 @@ def api_list_rows():
 
 @app.route('/api/rows', methods=['POST'])
 def api_add_row():
-    import traceback
     print("=== POST /api/rows 收到请求 ===", flush=True)
     try:
         if not session.get('user_id'): return jsonify({'error': '请先登录'}), 401
@@ -832,10 +895,10 @@ def api_update_row(row_id):
     print(f'[api_update_row] row_id={row_id}, data={json.dumps(data, ensure_ascii=False)}')
     cols = get_columns()
     db = get_db()
-    # 权限检查：非 boss 只能修改自己创建的数据
+    # 权限检查：非管理角色只能修改自己创建的数据
     role = session.get('role', '')
     username = session.get('username', '')
-    if role != 'boss':
+    if not can_view_all_rows(role):
         existing = db.fetch_one("SELECT id FROM rows_data WHERE id = ? AND _created_by = ?", (row_id, username))
     else:
         existing = db.fetch_one("SELECT id FROM rows_data WHERE id = ?", (row_id,))
@@ -904,14 +967,15 @@ def api_delete_row(row_id):
     db = get_db()
     role = session.get('role', '')
     username = session.get('username', '')
-    # 权限检查：非 boss 只能删除自己创建的数据
-    if role != 'boss':
+    # 权限检查：非管理角色只能删除自己创建的数据
+    if not can_view_all_rows(role):
         existing_row = db.fetch_one("SELECT * FROM rows_data WHERE id = ? AND _created_by = ?", (row_id, username))
     else:
         existing_row = db.fetch_one("SELECT * FROM rows_data WHERE id = ?", (row_id,))
     if not existing_row: return jsonify({'error': '记录不存在或无权删除'}), 404
     g.current_user_id = user_id; g.current_username = session.get('username', ''); g.current_role = role
-    if role != 'boss' and is_user_audited(user_id):
+    # 审核流：HR 角色始终提交审核；员工按全局审核开关决定；boss 直接执行
+    if role != 'boss' and (role == 'hr' or is_user_audited(user_id)):
         row_snapshot = json.dumps(dict(existing_row), ensure_ascii=False, default=str)
         db.execute_query("INSERT INTO pending_changes (row_id, column_name, old_value, new_value, change_type, requested_by, status) VALUES (?,?,?,?,?,?,?)",
                          (row_id, '__delete_row__', row_snapshot, '{}', 'delete', user_id, '待审核'))
@@ -938,13 +1002,14 @@ def api_batch_delete_rows():
     deleted = 0
     for row_id in ids:
         try:
-            if role != 'boss':
+            if not can_view_all_rows(role):
                 existing = db.fetch_one("SELECT * FROM rows_data WHERE id = ? AND _created_by = ?", (row_id, username))
             else:
                 existing = db.fetch_one("SELECT * FROM rows_data WHERE id = ?", (row_id,))
             if not existing:
                 continue
-            if role != 'boss' and is_user_audited(user_id):
+            # 审核流：HR 角色始终提交审核；员工按全局审核开关决定；boss 直接执行
+            if role != 'boss' and (role == 'hr' or is_user_audited(user_id)):
                 row_snapshot = json.dumps(dict(existing), ensure_ascii=False, default=str)
                 db.execute_query("INSERT INTO pending_changes (row_id, column_name, old_value, new_value, change_type, requested_by, status) VALUES (?,?,?,?,?,?,?)",
                                  (row_id, '__delete_row__', row_snapshot, '{}', 'delete', user_id, '待审核'))
@@ -1007,7 +1072,6 @@ def api_audit_list():
             result_rows.append(d)
         return jsonify({'data': result_rows, 'total': total, 'page': page, 'pageSize': page_size})
     except Exception as e:
-        import traceback
         print(f'[ERROR] GET /api/audit 异常: {e}', flush=True)
         traceback.print_exc()
         return jsonify({'error': f'服务器内部错误: {str(e)}'}), 500
@@ -1167,7 +1231,7 @@ def api_approve(change_id):
             print(f'[APPROVE] 未知 change_type: {ct}，仅标记通过')
     except Exception as e:
         print(f'[APPROVE] 执行操作失败 ({ct}): {e}')
-        import traceback; traceback.print_exc()
+        traceback.print_exc()
     
     db.execute_query("UPDATE pending_changes SET status = '已通过', reviewed_by = ?, reviewed_at = datetime('now') WHERE id = ?", (g.current_user_id, change_id))
     log_operation('审核通过', target_type='pending_changes', target_id=str(change_id))
@@ -1240,9 +1304,9 @@ def api_stats():
     db = get_db()
     col = db.fetch_one("SELECT * FROM columns_meta WHERE name = ?", (field_key,))
     if not col: return jsonify({'error': '字段不存在'}), 404
-    # 权限过滤：非 boss 角色只能看到自己创建的数据
+    # 权限过滤：非管理角色只能看到自己创建的数据
     role = session.get('role', '')
-    if role != 'boss':
+    if not can_view_all_rows(role):
         username = session.get('username', '')
         rows = db.fetch_all(f"SELECT {field_key} FROM rows_data WHERE {field_key} IS NOT NULL AND {field_key} != '' AND _created_by = ?", (username,))
     else:
@@ -1257,6 +1321,7 @@ def api_stats():
 @app.route('/api/stats/fields', methods=['GET'])
 def api_stats_fields():
     if not session.get('user_id'): return jsonify({'error': '请先登录'}), 401
+    if not user_has_permission(session['user_id'], 'view_stats'): return jsonify({'error': '权限不足'}), 403
     cols = get_columns()
     return jsonify([{'key': c['name'], 'label': c['label'], 'type': c['field_type']} for c in cols])
 
@@ -1274,7 +1339,7 @@ def api_export():
     col_names = ", ".join(c['name'] for c in cols) if cols else '*'
     db = get_db()
     role = session.get('role', '')
-    if role != 'boss':
+    if not can_view_all_rows(role):
         username = session.get('username', '')
         rows = db.fetch_all(f"SELECT id, {col_names} FROM rows_data WHERE _created_by = ? ORDER BY id ASC", (username,))
     else:
@@ -1320,8 +1385,68 @@ def api_import():
         excel_headers = [str(c).strip() if c is not None else '' for c in header_row_data[0]]
     else:
         excel_headers = [str(cell.value).strip() if cell.value is not None else '' for cell in ws[header_row]]
-    def auto_create_columns(headers):
+    def _detect_column_type(values):
+        """智能识别字段类型：分析该列全部数据后决定类型。
+
+        识别顺序：布尔词 → 数字 → 日期 → 下拉选项 → 文本。
+        返回 (field_type, options)。
+        """
+        non_empty = [v for v in values if v is not None and str(v).strip() != '']
+        if not non_empty:
+            return 'text', None
+        def _is_boolean_word(v):
+            if isinstance(v, bool): return True
+            return str(v).strip().lower() in ('是', '否', 'true', 'false', 'yes', 'no', 'y', 'n', '对', '错', '正确', '错误', '有', '无')
+        def _is_number(v):
+            if isinstance(v, bool): return False
+            if isinstance(v, (int, float)): return True
+            s = str(v).strip()
+            if not s: return False
+            # 手机号 / 身份证号等纯数字长串视为文本，避免误判为数字
+            if s.isdigit() and len(s) >= 10: return False
+            try:
+                float(s)
+                return True
+            except ValueError:
+                return False
+        def _is_date(v):
+            if isinstance(v, datetime): return True
+            if isinstance(v, (int, float, bool)): return False
+            s = str(v).strip()
+            if not s: return False
+            for fmt in ('%Y-%m-%d', '%Y/%m/%d', '%Y.%m.%d', '%Y年%m月%d日',
+                        '%m/%d/%Y', '%Y-%m-%d %H:%M:%S', '%Y/%m/%d %H:%M:%S',
+                        '%Y-%m-%d %H:%M', '%Y/%m/%d %H:%M'):
+                try:
+                    datetime.strptime(s, fmt)
+                    return True
+                except ValueError:
+                    continue
+            return False
+        # 1) 全部是布尔词 → 布尔/开关
+        if all(_is_boolean_word(v) for v in non_empty):
+            return 'boolean', None
+        # 2) 全部可转数字 → 数字
+        if all(_is_number(v) for v in non_empty):
+            return 'number', None
+        # 3) 全部是日期 → 日期
+        if all(_is_date(v) for v in non_empty):
+            return 'date', None
+        # 4) 取值有限且重复率高 → 下拉选择（自动生成选项）
+        distinct, seen = [], set()
+        for v in non_empty:
+            s = str(v).strip()
+            if s not in seen:
+                seen.add(s)
+                distinct.append(s)
+        if 1 < len(distinct) <= 20 and len(distinct) <= len(non_empty) * 0.6:
+            options = json.dumps([{'label': s, 'value': s} for s in distinct], ensure_ascii=False)
+            return 'select', options
+        return 'text', None
+
+    def auto_create_columns(headers, rows_data):
         new_names = []
+        used_names = set()
         for idx, h in enumerate(headers):
             if not h: continue
             if idx == 0 and h.lower() == 'id': continue
@@ -1329,16 +1454,26 @@ def api_import():
             name = re.sub(r'_+', '_', name).strip('_').lower()
             if not name or name[0].isdigit(): name = 'col_' + name
             if db.fetch_one("SELECT id FROM columns_meta WHERE name = ? OR label = ?", (name, h)): continue
+            # 边界情况：同一 Excel 内出现重名表头（如两个「备注」）时追加序号，
+            # 避免命中 columns_meta.name 的 UNIQUE 约束导致导入崩溃
+            base, n = name, 2
+            while name in used_names:
+                name = f"{base}_{n}"
+                n += 1
+            used_names.add(name)
             max_pos = (db.fetch_one("SELECT COALESCE(MAX(position), -1) + 1 AS np FROM columns_meta") or {}).get('np', 0)
-            db.execute_query("INSERT INTO columns_meta (name, label, field_type, options, position) VALUES (?,?,?,?,?)", (name, h, 'text', None, max_pos + idx))
-            try: db.execute_query(f"ALTER TABLE rows_data ADD COLUMN {name} TEXT")
+            # 智能识别字段类型：分析该列全部数据
+            values = [row[idx] if idx < len(row) else None for row in rows_data]
+            field_type, options = _detect_column_type(values)
+            db.execute_query("INSERT INTO columns_meta (name, label, field_type, options, position) VALUES (?,?,?,?,?)", (name, h, field_type, options, max_pos + idx))
+            try: db.execute_query(f"ALTER TABLE rows_data ADD COLUMN {name} {sqlite_type(field_type)}")
             except: pass
             new_names.append(name)
         return new_names, get_columns()
     cols = get_columns()
     new_fields = []
     if not cols:
-        new_fields, cols = auto_create_columns(excel_headers)
+        new_fields, cols = auto_create_columns(excel_headers, rows_data)
     if not cols: return jsonify({'error': '无法创建字段定义'}), 400
     col_names = [c['name'] for c in cols]
     places = ", ".join("?" for _ in col_names)
@@ -1642,32 +1777,82 @@ def get_ai_models():
     return jsonify({"success": True, "models": presets})
 
 
-@app.route('/api/ai/test', methods=['POST'])
-@app.route('/api/ai/test/', methods=['POST'])
-def test_ai_connection():
-    if not session.get('user_id'):
-        return jsonify({'error': '请先登录'}), 401
-    g.current_user_id = session['user_id']
-    g.current_username = session.get('username', '')
-    g.current_role = session.get('role', '')
-    """测试 AI 连接"""
-    data = request.get_json() or {}
+def _safe_close(adapter):
+    """安全关闭数据库适配器，忽略异常（可能未初始化或已关闭）"""
+    try:
+        if adapter is not None:
+            adapter.close()
+    except Exception:
+        pass
+
+
+def _attach_warning(payload: dict, warning):
+    """若 warning 非空，将其写入响应字典顶层（前端可读取 _warning 字段做提示）"""
+    if warning:
+        payload['_warning'] = warning
+    return payload
+
+
+def _parse_ai_request(data: dict, default_model: str = 'gpt-4o-mini'):
+    """
+    从请求体解析 AI 调用参数并创建 AIClient（供 test / analyze / chat 三个接口复用）。
+
+    Args:
+        data: 请求体 JSON 字典
+        default_model: 前端未指定 model 时使用的默认模型名
+
+    Returns:
+        tuple (provider, model, client, error_response, warning)：
+        - 校验失败时：client 为 None，error_response 为 (jsonify响应, HTTP状态码) 元组
+        - 校验成功时：error_response 为 None，client 为已配置好的 AIClient 实例
+        - warning：可选字符串，提示前端展示的兼容性提示（如 web_search 不被支持时）
+    """
+    from backend.ai_client import AIClient, MODEL_PRESETS
+
     provider = data.get('provider', 'openai')
-    model = data.get('model', 'gpt-4o-mini')
+    model = data.get('model', default_model)
     api_key = data.get('api_key', '')
     base_url = data.get('base_url', '')
+    temperature = data.get('temperature', 0.7)
+    web_search = bool(data.get('web_search', False))
+    warning = None
 
+    # 联网搜索仅 DeepSeek 官方 chat/completions 端点支持 tools[0].type='web_search'，
+    # 其他 provider（OpenAI / Qwen / ERNIE / 自定义中转）走 /chat/completions 协议，
+    # 不接受该变体，强制开启会被服务端以 400 拒绝（unknown variant 'web_search'）。
+    # 判断依据：provider 必须是 deepseek，且 Base URL 必须指向 DeepSeek 官方域名。
+    effective_base_url = base_url or (MODEL_PRESETS.get(provider, {}).get("base_url", ""))
+    is_deepseek_official = provider == 'deepseek' and 'deepseek.com' in effective_base_url.lower()
+    if web_search and not is_deepseek_official:
+        web_search = False
+        warning = '联网搜索仅 DeepSeek 官方端点支持，已自动关闭'
+
+    # 无效输入校验：缺少 API Key 时直接返回友好错误，避免无意义的网络请求
     if not api_key:
-        return jsonify({'success': False, 'error': '请提供 API Key'}), 400
+        return None, None, None, (jsonify({'success': False, 'error': '请提供 API Key'}), 400), None
+
+    client = AIClient(
+        provider=provider,
+        model=model,
+        api_key=api_key,
+        base_url=base_url if base_url else None,
+        temperature=temperature,
+        web_search=web_search,
+    )
+    return provider, model, client, None, warning
+
+
+@app.route('/api/ai/test', methods=['POST'])
+@app.route('/api/ai/test/', methods=['POST'])
+@require_login
+def test_ai_connection():
+    """测试 AI 连接"""
+    data = request.get_json() or {}
+    provider, model, client, err_resp, warning = _parse_ai_request(data, 'gpt-4o-mini')
+    if err_resp:
+        return err_resp
 
     try:
-        from backend.ai_client import AIClient
-        client = AIClient(
-            provider=provider,
-            model=model,
-            api_key=api_key,
-            base_url=base_url if base_url else None,
-        )
         result = client.test_connection()
 
         # 记录操作日志
@@ -1676,7 +1861,7 @@ def test_ai_connection():
         else:
             log_operation('AI连接测试失败', 'ai_test', detail=f'模型: {model}, 厂商: {provider}, 错误: {result.get("error", "未知错误")[:100]}')
 
-        return jsonify(result)
+        return jsonify(_attach_warning(result, warning))
     except Exception as e:
         log_operation('AI连接测试异常', 'ai_test', detail=f'异常: {str(e)[:200]}')
         return jsonify({'success': False, 'error': f'测试失败: {str(e)}'}), 200
@@ -1684,23 +1869,15 @@ def test_ai_connection():
 
 @app.route('/api/ai/analyze', methods=['POST'])
 @app.route('/api/ai/analyze/', methods=['POST'])
+@require_login
 def ai_analyze():
-    if not session.get('user_id'):
-        return jsonify({'error': '请先登录'}), 401
-    g.current_user_id = session['user_id']
-    g.current_username = session.get('username', '')
-    g.current_role = session.get('role', '')
     """AI 数据分析"""
     data = request.get_json() or {}
-    provider = data.get('provider', 'openai')
-    model = data.get('model', 'gpt-4.1-mini')
-    api_key = data.get('api_key', '')
-    base_url = data.get('base_url', '')
+    provider, model, client, err_resp, warning = _parse_ai_request(data, 'gpt-4.1-mini')
+    if err_resp:
+        return err_resp
     question = data.get('question', '')
-    temperature = data.get('temperature', 0.7)
-
-    if not api_key:
-        return jsonify({'success': False, 'error': '请提供 API Key'}), 400
+    adapter = None
 
     try:
         adapter = get_adapter()
@@ -1713,10 +1890,16 @@ def ai_analyze():
         except Exception:
             pass
 
-        # ── 2. 总行数（rows_data 表）──
+        # ── 2. 总行数（rows_data 表，按角色权限过滤）──
+        # 管理角色（boss/hr）统计全部数据；员工只能统计自己创建的数据
+        current_role = g.current_role or session.get('role', '')
+        current_username = g.current_username or session.get('username', '')
         total_rows = 0
         try:
-            result = adapter.fetch_one("SELECT COUNT(*) as cnt FROM rows_data")
+            if can_view_all_rows(current_role):
+                result = adapter.fetch_one("SELECT COUNT(*) as cnt FROM rows_data")
+            else:
+                result = adapter.fetch_one("SELECT COUNT(*) as cnt FROM rows_data WHERE _created_by = ?", (current_username,))
             total_rows = result['cnt'] if result else 0
         except Exception:
             total_rows = 0
@@ -1731,9 +1914,15 @@ def ai_analyze():
                 if not col_name:
                     continue
                 try:
-                    rows = adapter.fetch_all(
-                        f"SELECT {col_name} as val FROM rows_data LIMIT 1000"
-                    )
+                    if can_view_all_rows(current_role):
+                        rows = adapter.fetch_all(
+                            f"SELECT {col_name} as val FROM rows_data LIMIT 1000"
+                        )
+                    else:
+                        rows = adapter.fetch_all(
+                            f"SELECT {col_name} as val FROM rows_data WHERE _created_by = ? LIMIT 1000",
+                            (current_username,),
+                        )
                     if rows:
                         values = [r['val'] for r in rows if r.get('val') is not None]
                         stats = {
@@ -1748,7 +1937,6 @@ def ai_analyze():
                                 stats["最大值"] = max(nums)
                                 stats["平均值"] = round(sum(nums) / len(nums), 2)
                         elif col_type in ('select',):
-                            from collections import Counter
                             counter = Counter([str(v) for v in values])
                             stats["分布"] = dict(counter.most_common(10))
                         field_stats.append({
@@ -1801,27 +1989,33 @@ def ai_analyze():
         except Exception:
             pass
 
-        # ── 构造数据摘要 ──
+        # ── 构造数据摘要（按当前用户权限裁剪敏感部分）──
+        # 员工 / 无对应权限的用户，不得把审核统计、用户统计、操作日志等
+        # 管理类数据喂给 AI，避免“套出越权信息”的问题。
+        current_perms = get_user_permissions(g.current_user_id) if g.current_user_id else []
+        def _has_perm(perm: str) -> bool:
+            return perm in current_perms
+
         data_summary = {
             "total_rows": total_rows,
             "total_columns": len(columns),
             "columns": [{"key": c.get('name', ''), "label": c.get('label', c.get('name', '')), "type": c.get('field_type', 'text')} for c in columns],
             "field_stats": field_stats,
-            "audit_stats": audit_stats,
-            "user_stats": user_stats,
-            "recent_logs": recent_logs,
+            "audit_stats": audit_stats if _has_perm('audit_center') else {},
+            "user_stats": user_stats if _has_perm('manage_users') else {},
+            "recent_logs": recent_logs if _has_perm('view_logs') else [],
         }
 
-        # ── 调用 AI ──
-        from backend.ai_client import AIClient
-        client = AIClient(
-            provider=provider,
-            model=model,
-            api_key=api_key,
-            base_url=base_url if base_url else None,
-            temperature=temperature,
-        )
-        result = client.analyze(data_summary, question=question if question else None)
+        # 用户身份与权限上下文：让 AI 明确“提问者是谁、能看到什么、分析范围多大”
+        user_context = {
+            "username": g.current_username,
+            "role": current_role,
+            "permissions": current_perms,
+            "data_scope": "all" if can_view_all_rows(current_role) else "own",
+        }
+
+        # ── 调用 AI（client 已在 _parse_ai_request 中创建）──
+        result = client.analyze(data_summary, question=question if question else None, user_context=user_context)
 
         # 记录操作日志
         if result.get('success'):
@@ -1837,51 +2031,32 @@ def ai_analyze():
                 detail=f'模型: {model}, 厂商: {provider}, 错误: {result.get("error", "未知错误")[:100]}'
             )
 
-        return jsonify(result)
+        return jsonify(_attach_warning(result, warning))
 
     except Exception as e:
-        import traceback
         traceback.print_exc()
         log_operation('AI分析异常', 'ai_analyze', detail=f'异常: {str(e)[:200]}')
         return jsonify({'success': False, 'error': f'分析失败: {str(e)}'}), 500
     finally:
-        try:
-            if 'adapter' in dir() and adapter:
-                adapter.close()
-        except Exception:
-            pass
+        _safe_close(adapter)
 
 
 @app.route('/api/ai/chat', methods=['POST'])
 @app.route('/api/ai/chat/', methods=['POST'])
+@require_login
 def ai_chat():
-    if not session.get('user_id'):
-        return jsonify({'error': '请先登录'}), 401
-    g.current_user_id = session['user_id']
-    g.current_username = session.get('username', '')
-    g.current_role = session.get('role', '')
     """AI 对话式追问"""
     data = request.get_json() or {}
-    provider = data.get('provider', 'openai')
-    model = data.get('model', 'gpt-4o-mini')
-    api_key = data.get('api_key', '')
-    base_url = data.get('base_url', '')
+    provider, model, client, err_resp, warning = _parse_ai_request(data, 'gpt-4o-mini')
+    if err_resp:
+        return err_resp
     history = data.get('history', [])
     message = data.get('message', '')
 
-    if not api_key:
-        return jsonify({'success': False, 'error': '请提供 API Key'}), 400
     if not message:
         return jsonify({'success': False, 'error': '请输入消息'}), 400
 
     try:
-        from backend.ai_client import AIClient
-        client = AIClient(
-            provider=provider,
-            model=model,
-            api_key=api_key,
-            base_url=base_url if base_url else None,
-        )
         result = client.chat(history, message)
 
         # 记录操作日志
@@ -1898,10 +2073,99 @@ def ai_chat():
                 detail=f'模型: {model}, 厂商: {provider}, 错误: {result.get("error", "未知错误")[:100]}'
             )
 
-        return jsonify(result)
+        return jsonify(_attach_warning(result, warning))
     except Exception as e:
         log_operation('AI对话异常', 'ai_chat', detail=f'异常: {str(e)[:200]}')
         return jsonify({'success': False, 'error': f'对话失败: {str(e)}'}), 500
+
+
+# ──────────────────────── AI 分析记录（按用户隔离） ────────────────────────
+
+def _get_ai_history_row(adapter, user_id):
+    """获取当前用户最近一条 AI 分析记录（每个账号独立）"""
+    return adapter.fetch_one(
+        "SELECT report, chat_history, created_at, updated_at "
+        "FROM ai_analysis_history WHERE user_id = ? "
+        "ORDER BY id DESC LIMIT 1",
+        (user_id,)
+    )
+
+
+@app.route('/api/ai/history', methods=['GET'])
+@app.route('/api/ai/history/', methods=['GET'])
+@require_login
+def get_ai_history():
+    """获取当前用户的 AI 分析记录（按用户隔离）"""
+    try:
+        adapter = get_db()
+        row = _get_ai_history_row(adapter, g.current_user_id)
+        if not row:
+            return jsonify({'success': True, 'report': '', 'chat_history': [], 'created_at': None, 'updated_at': None})
+        report = row['report'] or ''
+        chat_history = []
+        if row['chat_history']:
+            try:
+                chat_history = json.loads(row['chat_history'])
+            except Exception:
+                chat_history = []
+        return jsonify({
+            'success': True,
+            'report': report,
+            'chat_history': chat_history,
+            'created_at': row['created_at'],
+            'updated_at': row['updated_at'],
+        })
+    except Exception as e:
+        log_operation('AI记录获取异常', 'ai_history', detail=f'异常: {str(e)[:200]}')
+        return jsonify({'success': False, 'error': f'获取记录失败: {str(e)}'}), 500
+
+
+@app.route('/api/ai/history', methods=['POST'])
+@app.route('/api/ai/history/', methods=['POST'])
+@require_login
+def save_ai_history():
+    """保存当前用户的 AI 分析记录（按用户隔离，只保留一份最新记录）"""
+    data = request.get_json() or {}
+    report = data.get('report', '')
+    chat_history = data.get('chat_history', [])
+
+    try:
+        adapter = get_db()
+        existing = _get_ai_history_row(adapter, g.current_user_id)
+        if existing:
+            adapter.execute_query(
+                "UPDATE ai_analysis_history SET report = ?, chat_history = ?, updated_at = ({ts}) "
+                "WHERE user_id = ?",
+                (report, json.dumps(chat_history, ensure_ascii=False), g.current_user_id)
+            )
+        else:
+            adapter.execute_query(
+                "INSERT INTO ai_analysis_history (user_id, report, chat_history) VALUES (?, ?, ?)",
+                (g.current_user_id, report, json.dumps(chat_history, ensure_ascii=False))
+            )
+        log_operation('AI记录保存', 'ai_history', detail=f'保存 {len(report)} 字报告 / {len(chat_history)} 条对话')
+        return jsonify({'success': True})
+    except Exception as e:
+        log_operation('AI记录保存异常', 'ai_history', detail=f'异常: {str(e)[:200]}')
+        return jsonify({'success': False, 'error': f'保存记录失败: {str(e)}'}), 500
+
+
+@app.route('/api/ai/history', methods=['DELETE'])
+@app.route('/api/ai/history/', methods=['DELETE'])
+@require_login
+def clear_ai_history():
+    """清除当前用户的 AI 分析记录（按用户隔离）"""
+    try:
+        adapter = get_db()
+        adapter.execute_query(
+            "DELETE FROM ai_analysis_history WHERE user_id = ?",
+            (g.current_user_id,)
+        )
+        log_operation('AI记录清除', 'ai_history', detail='清除该用户全部 AI 记录')
+        return jsonify({'success': True})
+    except Exception as e:
+        log_operation('AI记录清除异常', 'ai_history', detail=f'异常: {str(e)[:200]}')
+        return jsonify({'success': False, 'error': f'清除记录失败: {str(e)}'}), 500
 
 
 # 前端构建产物路径（新 UI 使用 Vite 构建到 frontend/dist）
@@ -1956,8 +2220,6 @@ def serve_react(path):
 
 # ──────────────────────── 启动 ────────────────────────
 if __name__ == '__main__':
-    import traceback
-
     try:
         import waitress
         port = 5001
