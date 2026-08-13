@@ -15,7 +15,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * 获取应用版本号
    * @returns 版本字符串
    */
-  getVersion: () => '1.0.0',
+  getVersion: () => '6.0.0',
 
   /**
    * 打开外部链接（使用系统默认浏览器）

@@ -1,7 +1,7 @@
 # 🔮 动态数据登记系统 · Dynamic Registry
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-5.1-blue?style=for-the-badge" alt="version">
+  <img src="https://img.shields.io/badge/version-6.0-blue?style=for-the-badge" alt="version">
   <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="license">
   <img src="https://img.shields.io/badge/python-3.9+-orange?style=for-the-badge&logo=python" alt="python">
   <img src="https://img.shields.io/badge/react-18-blue?style=for-the-badge&logo=react" alt="react">
@@ -21,7 +21,7 @@
   <a href="#-审核工作流">审核流程</a> ·
   <a href="#-部署方案">部署</a> ·
   <a href="#-性能测试">压测</a> ·
-  <a href="#-v51-更新公告">更新公告</a> ·
+  <a href="#-v60-更新公告">更新公告</a> ·
   <a href="#-开发历程">开发历程</a> ·
   <a href="#-完整版本历史">版本历史</a> ·
   <a href="#-用户协议">用户协议</a> ·
@@ -45,6 +45,7 @@
 - [v4.1 更新公告](#-v41-更新公告)
 - [v5.0 更新公告](#-v50-更新公告)
 - [v5.1 更新公告](#-v51-更新公告)
+- [v6.0 更新公告](#-v60-更新公告)
 - [开发历程](#-开发历程)
 - [完整版本历史](#-完整版本历史)
 - [用户协议](#-用户协议)
@@ -77,9 +78,10 @@ graph TB
         Audit["✅ 审核中心<br/>待审核队列 + 审批操作"]
         Logs["📝 操作日志<br/>全量记录 + 导出"]
         Users["👥 用户管理<br/>增删改 + 细粒度权限"]
-        AIAnalysis["🤖 AI 分析<br/>多模型对话式数据分析"]
+        AIAnalysis["🤖 AI 分析<br/>多模型对话 + 语音输入<br/>报告 + 多轮追问 + 历史记录"]
         Backup["💾 备份恢复<br/>一键备份 + 上传恢复"]
-        Settings["⚙️ 系统设置<br/>主题 + 数据库引擎切换"]
+        Settings["⚙️ 系统设置<br/>主题质感 + 数据库引擎切换"]
+        ThemeSys["🎨 主题质感系统<br/>9 种质感 · 四色自定义配色<br/>玻璃透明度 · 背景图"]
     end
 
     subgraph GatewayLayer["🛡️ 网关层 (Flask Middleware)"]
@@ -90,9 +92,10 @@ graph TB
 
     subgraph BackendLayer["🐍 后端层 (Flask + Waitress 生产模式)"]
         direction TB
-        API["REST API<br/>30+ 端点"]
+        API["REST API<br/>49 个端点"]
         BizLogic["业务逻辑<br/>CRUD / 统计 / 导入导出<br/>备份恢复 / 用户管理"]
         AuditEngine["审核引擎<br/>解析原始操作 → 自动执行<br/>支持 15+ 种 change_type"]
+        AIService["AI 服务<br/>models / test / analyze / chat / history<br/>多模型客户端 · 流式解析 · 联网搜索"]
     end
 
     subgraph DataLayer["🗄️ 数据抽象层"]
@@ -110,8 +113,10 @@ graph TB
     AuditGate --> API
     API --> BizLogic
     API --> AuditEngine
+    API --> AIService
     BizLogic --> Adapter
     AuditEngine --> Adapter
+    AIService --> Adapter
     Adapter --> SQLite
     Adapter --> MySQL
     BizLogic --> FileStore
@@ -143,9 +148,14 @@ graph TB
 | | 自动执行 | 审批通过后自动解析原始操作并执行 |
 | 📈 **统计分析** | ECharts 可视化 | 饼图/柱状图/折线图 |
 | | 按字段统计 | 任意字段自由统计 |
-| 🤖 **AI 分析** | 多模型支持 | DeepSeek / OpenAI / 通义千问 一键切换 |
-| | 对话式分析 | 自然语言提问，智能数据洞察 |
+| 🤖 **AI 分析** | 多模型支持 | DeepSeek / OpenAI / 通义千问 / 文心一言 / 自定义 |
+| | 对话式分析 | 自然语言提问，报告 + 多轮追问 |
 | | 流式输出 | 实时查看 AI 分析过程 |
+| | 语音输入 | Web Speech API 语音转文字 |
+| | 历史记录 | 报告与对话按用户隔离自动保存 |
+| 🎨 **主题质感** | 9 种背景质感 | 玻璃/磨砂/金属/纸张/霓虹/液态网格/深度/透明/极简平面 |
+| | 四色自定义配色 | 品牌强调色、背景色、卡片背景色、文本颜色 |
+| | 按用户隔离 | 主题配置独立存储，登录自动恢复 |
 | 🗄️ **数据库** | SQLite + MySQL | 双引擎无缝切换，一行配置 |
 | | 统一适配层 | DatabaseAdapter ABC 抽象，? 占位符统一 |
 | 📦 **导入导出** | Excel 导入 | 智能识别表头，自动创建字段 |
@@ -295,6 +305,7 @@ erDiagram
         string role "boss / hr / employee / custom"
         json permissions "21 项细粒度权限数组"
         bool global_audit "全局审核开关"
+        json theme "9种质感/四色配色/背景图"
         string created_at "创建时间"
     }
 
@@ -354,9 +365,19 @@ erDiagram
         string created_at "创建时间"
     }
 
+    ai_analysis_history {
+        int id PK "自增主键"
+        int user_id FK "用户ID（按用户隔离）"
+        text report "AI 分析报告"
+        text chat_history "多轮对话历史 JSON"
+        string created_at "创建时间"
+        string updated_at "更新时间"
+    }
+
     users ||--o{ pending_changes : "提交审核"
     users ||--o{ operations_log : "产生日志"
     users ||--o{ rows_data : "创建数据"
+    users ||--o{ ai_analysis_history : "拥有历史"
     columns_meta ||--o{ rows_data : "定义结构"
 ```
 
@@ -631,7 +652,7 @@ npx electron dist/main.js
 
 ```
 dynamic_registry/
-├── app.py                      # 🐍 Flask 后端主入口（1618 行）
+├── app.py                      # 🐍 Flask 后端主入口（2060 行）
 ├── run.py                      # 🚀 开发启动脚本
 ├── requirements.txt            # 📦 Python 依赖
 ├── registry.db                 # 🗄️ SQLite 数据库（默认）
@@ -642,7 +663,7 @@ dynamic_registry/
 │   │   ├── DatabaseAdapter     #    ABC 抽象基类
 │   │   ├── SQLiteAdapter       #    SQLite 实现
 │   │   └── MySQLAdapter        #    MySQL 实现
-│   ├── ai_client.py            # 🤖 AI 多模型客户端（DeepSeek/OpenAI/通义千问）
+│   ├── ai_client.py            # 🤖 AI 多模型客户端（DeepSeek/OpenAI/通义千问/文心一言/自定义）
 │   ├── db_crypto.py            # 🔐 数据加密模块
 │   ├── test_adapter.py         # 🧪 适配器单元测试
 │   └── requirements.txt        # 📦 后端依赖
@@ -652,7 +673,8 @@ dynamic_registry/
 │   │   ├── api/                # 🌐 API 客户端（自动检测 Electron 环境）
 │   │   ├── components/         # 🧩 公共组件
 │   │   │   ├── AppLayout.tsx   #    主布局（侧栏 + 顶栏）
-│   │   │   └── EditableCell.tsx#    内联编辑单元格
+│   │   │   ├── EditableCell.tsx#    内联编辑单元格
+│   │   │   └── FloatingThemeButton.tsx  #   🎨 悬浮主题切换
 │   │   ├── pages/              # 📄 页面组件
 │   │   │   ├── Login.tsx       #    登录页
 │   │   │   ├── DataTable.tsx   #    数据登记页
@@ -664,7 +686,7 @@ dynamic_registry/
 │   │   │   ├── AIAnalysis.tsx  #    AI 数据分析
 │   │   │   └── Settings.tsx    #    系统设置
 │   │   ├── stores/             # 🗃️ Zustand 状态管理
-│   │   ├── styles/             # 🎨 紫色渐变主题
+│   │   ├── styles/             # 🎨 主题质感系统（textures.css 9 种质感 + CSS 变量）
 │   │   ├── types/              # 📐 TypeScript 类型
 │   │   └── router/             # 🧭 路由配置
 │   ├── vite.config.ts          # ⚡ Vite 构建配置
@@ -772,8 +794,9 @@ MYSQL_DATABASE=app_db
 | **v4.1** | **07-27** | 🚀 | **AI 数据分析：多模型对话式智能分析** |
 | **v5.0** | **07-28** | 🚀 | **用户体验大升级：侧边栏持久化、AI稳定性修复、安全增强** |
 | **v5.1** | **08-13** | 🚀 | **个性化与合规升级：用户主题系统、HR删除纳入审核流、AI分析按角色定制** |
+| **v6.0** | **08-14** | 🚀 | **性能优化 + AI 操作逻辑升级 + 自定义背景质感系统** |
 
-> 📊 **迭代统计**：24 个版本 · 19 项新增 · 3 项修复 · 2 项优化 · 5 天完成 MVP → v5.1
+> 📊 **迭代统计**：25 个版本 · 20 项新增 · 3 项修复 · 3 项优化 · 5 天完成 MVP → v6.0
 
 ---
 
@@ -871,9 +894,48 @@ MYSQL_DATABASE=app_db
 
 ---
 
+## 📢 v6.0 更新公告
+
+> 发布日期：2026 年 8 月 14 日
+
+### ⚡ 性能全面优化
+
+| 优化项 | 说明 |
+|:---|:---|
+| 后端分页查询 | 数据/审核/日志/用户列表全部改为 SQL 分页（LIMIT/OFFSET，pageSize 上限 100），大数据量下响应更快 |
+| React Query 缓存 | 服务端状态 `staleTime: 30s` + `placeholderData`，翻页切换零 loading 闪烁 |
+| 防抖机制 | 搜索 500ms、字段编辑保存 300ms、AI 历史保存 800ms、主题配色保存 500ms，减少无效请求 |
+| 渲染优化 | 大量 `useMemo` / `useCallback` 避免无效重渲染；ECharts 图表实例按需加载与复用 |
+| 统计取样 | 字段统计按取样（LIMIT 1000）计算，避免全表扫描 |
+
+### 🤖 AI 操作逻辑升级
+
+| 能力 | 说明 |
+|:---|:---|
+| 多模型预设 | OpenAI / DeepSeek / 通义千问 / 文心一言 / 自定义模型一键切换 |
+| 智能联网搜索 | 切换模型自动开关联网搜索（仅 DeepSeek 原生支持，其他平台自动提示关闭） |
+| 语音输入 | 基于 Web Speech API 的语音转文字，直接说出分析问题 |
+| AI 历史记录 | 报告 + 多轮对话历史按用户隔离保存在后端（`ai_analysis_history` 表），防抖自动保存 |
+| 错误处理增强 | 服务商报错信息友好化，兼容不同平台的错误响应格式，中文提示更易懂 |
+| 数据摘要智能构造 | 按角色裁剪统计数据、审计记录、用户信息，AI 看到的始终是权限范围内的数据 |
+
+### 🎨 自定义背景及质感系统
+
+| 能力 | 说明 |
+|:---|:---|
+| 9 种背景质感 | 玻璃 / 磨砂 / 金属 / 纸张 / 霓虹 / 液态网格 / 深度 / 透明 / 极简平面 |
+| 全 CSS 变量驱动 | 不再依赖 JS 注入 style，双属性 `data-texture` + `data-theme` 驱动，150ms 平滑过渡 |
+| 四色自定义配色 | 品牌强调色、背景色、卡片背景色、文本颜色自由搭配 |
+| 玻璃透明度调节 | 玻璃质感下可调透明度（`--tx-glass-alpha`） |
+| 霓虹强调色 | 电光紫 / 电光青双强调色切换 |
+| 自定义背景图 | 上传本地图片作为背景，玻璃/透明质感下叠加展示 |
+| 按用户隔离存储 | 主题配置存入后端 `users.theme`，不同账号互不影响，登录自动恢复 |
+
+---
+
 ## 🧭 开发历程
 
-> 一个"从无聊开始"的项目，11 天迭代 24 个版本。
+> 一个"从无聊开始"的项目，12 天迭代 25 个版本。
 > 完整开发经历详见 [开发日志.md](./开发日志.md)（个人视角）。
 
 ### 起因
@@ -893,6 +955,7 @@ MYSQL_DATABASE=app_db
 | 第 9 天 | AI 数据分析 | 多模型对话式分析、API Key 加密、超时与 Prompt 调优 |
 | 第 10 天 | 打包发布 | 绕过 WSL 限制，GitHub Actions 在线构建成功 |
 | 第 11 天 | 个性化与合规升级 | 用户主题系统、HR 审核流、AI 按角色定制、协议更新 |
+| 第 12 天 | 性能与质感升级 | 全链路性能优化、AI 操作逻辑升级、9 种背景质感 + 自定义配色 |
 
 ### 沉淀的经验
 
@@ -905,9 +968,10 @@ MYSQL_DATABASE=app_db
 
 | 指标 | 数值 |
 |:---|:---:|
-| 版本数 | **24** |
+| 版本数 | **25** |
 | 动态字段类型 | **7 种** |
 | 角色权限 | **4 级 / 21 项** |
+| 背景质感 | **9 种** |
 | 并发压测 | **170 并发 · 72h · 0 失败 · 42ms** |
 | 部署形态 | **4 种**（Web / 桌面 / Docker / 打包） |
 
@@ -998,6 +1062,7 @@ MYSQL_DATABASE=app_db
 | **v4.1** | **07-27** | 🚀 | **AI 数据分析**：多模型对话式智能分析（DeepSeek/OpenAI/通义千问） |
 | **v5.0** | **07-28** | 🚀 | **UX 大升级**：侧边栏持久化、AI 分析结果持久化、API Key 安全性、超时修复、审计日志补全 |
 | **v5.1** | **08-13** | 🚀 | **个性化与合规升级**：用户主题系统、HR 删除纳入审核流、AI 分析按角色定制、AI 客户端兼容性重构 |
+| **v6.0** | **08-14** | 🚀 | **性能与质感升级**：全链路分页缓存优化、AI 多模型操作逻辑升级、9 种背景质感 + 自定义配色系统 |
 
 ### ⚠️ v2.5-rc 回滚详情
 
@@ -1024,19 +1089,20 @@ timeline
           : v4.1 AI 数据分析<br/>多模型对话式智能分析
     07-28 : v5.0 UX 大升级<br/>持久化 + 安全 + 稳定性修复
     08-13 : v5.1 个性化与合规升级<br/>主题系统 + HR 审核流 + AI 按角色定制
+    08-14 : v6.0 性能与质感升级<br/>性能优化 + AI 操作逻辑 + 9 种背景质感
 ```
 
 | 指标 | 数值 |
 |:---|:---:|
-| 总版本数 | **24** |
-| 新增功能 | **19** |
+| 总版本数 | **25** |
+| 新增功能 | **20** |
 | 修复问题 | **3** |
-| 优化改进 | **2** |
+| 优化改进 | **3** |
 | 回滚操作 | **1** |
-| 开发周期 | 2026-07-19 ~ 2026-08-13（11 天） |
-| 阶段跨度 | alpha → beta → rc → 正式版 → 架构重构 → AI 增强 → UX 升级 → 个性化与合规升级 |
+| 开发周期 | 2026-07-19 ~ 2026-08-14（12 天） |
+| 阶段跨度 | alpha → beta → rc → 正式版 → 架构重构 → AI 增强 → UX 升级 → 个性化与合规升级 → 性能与质感升级 |
 
-> 📅 **最后更新**：2026-08-13 &nbsp;&nbsp;|&nbsp;&nbsp; 🏷️ **当前版本**：v5.1
+> 📅 **最后更新**：2026-08-14 &nbsp;&nbsp;|&nbsp;&nbsp; 🏷️ **当前版本**：v6.0
 
 ---
 
