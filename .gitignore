@@ -19,3 +19,13 @@ _server_log.txt
 .vite/
 backups/db_backups/
 .codebuddy/
+
+# 本地调试/构建残留，勿提交
+_check_*.py
+_cred_check.py
+_fix_hosts.py
+_git_askpass.py
+_verify_employee_view.py
+demo.html
+demo/
+registry.db
