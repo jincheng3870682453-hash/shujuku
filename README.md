@@ -1283,7 +1283,10 @@ pip install -r requirements.txt && pip install -r backend/requirements.txt
 **PolyForm Noncommercial License 1.0.0** · Copyright (c) 2026 Jincheng3870682453-hash
 
 > **允许**：查看、学习、研究、个人使用、非商业修改与分发
-> **禁止**：任何商业用途（商用、售卖、提供商业服务）——如需商业授权，请通过 [GitHub Issues](https://github.com/jincheng3870682453-hash/shujuku/issues) 联系作者
+> **禁止**：任何商业用途（商用、售卖、提供商业服务）
+>
+> 📧 **商业授权**：请邮件联系作者 **3870682453@qq.com**（主联系，回复快）或 jincheng3870682453@gmail.com（备用）——说明你的用途，作者确认后即可授权。
+> 也可以在 [GitHub Issues](https://github.com/jincheng3870682453-hash/shujuku/issues) 留言
 > 协议全文见 [LICENSE](LICENSE)
 
 ---
