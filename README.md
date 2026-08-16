@@ -10,6 +10,10 @@
 </p>
 
 <p align="center">
+  <a href="README.md"><b>中文</b></a> · <a href="README_EN.md">English</a>
+</p>
+
+<p align="center">
   <b>一个动态字段、双数据库引擎、三级权限审核的 Web/桌面一体化数据管理平台</b>
 </p>
 
