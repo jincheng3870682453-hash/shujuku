@@ -4,6 +4,7 @@
   "description": "动态数据登记系统 - Electron 桌面壳",
   "main": "dist/main.js",
   "private": true,
+  "license": "SEE LICENSE IN LICENSE",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "watch": "tsc -p tsconfig.json -w",
