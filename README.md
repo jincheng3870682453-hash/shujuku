@@ -2,7 +2,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-6.0-blue?style=for-the-badge" alt="version">
-  <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="license">
+  <img src="https://img.shields.io/badge/license-PolyForm%20Noncommercial-orange?style=for-the-badge" alt="license">
   <img src="https://img.shields.io/badge/python-3.9+-orange?style=for-the-badge&logo=python" alt="python">
   <img src="https://img.shields.io/badge/react-18-blue?style=for-the-badge&logo=react" alt="react">
   <img src="https://img.shields.io/badge/electron-28-47848f?style=for-the-badge&logo=electron" alt="electron">
@@ -1108,13 +1108,13 @@ timeline
 
 ## 📄 用户协议
 
-> 最后更新日期：2026 年 7 月 27 日
+> 最后更新日期：2026 年 8 月 16 日
 
 欢迎使用「动态数据登记系统」（以下简称"本软件"）。安装、复制或使用本软件即表示您同意接受本协议所有条款的约束。如不同意，请勿使用。
 
 ### 一、许可授权
 
-授予您非独占、不可转让的免费使用许可。可用于个人或商业场景。本许可是使用权许可，而非所有权出售。
+授予您非独占、不可转让的免费使用许可，**仅限个人与非商业用途**（学习、研究、个人使用）。任何商业使用（包括但不限于企业内部商用、出售、提供商业服务、用于商业产品）均须事先取得开发者书面授权。本许可是使用权许可，而非所有权出售。
 
 ### 二、使用限制
 
@@ -1125,6 +1125,7 @@ timeline
 - 实施欺诈、诈骗等犯罪行为
 - 反向工程、反编译或提取源代码（公开的源码除外）
 - 将本软件或修改版本作为独立产品再分发销售
+- 未经开发者书面授权，将本软件或修改版本用于任何商业用途
 
 ### 三、知识产权
 
@@ -1279,7 +1280,11 @@ pip install -r requirements.txt && pip install -r backend/requirements.txt
 
 ## 📄 License
 
-MIT License · Copyright (c) 2026 Jincheng3870682453-hash
+**PolyForm Noncommercial License 1.0.0** · Copyright (c) 2026 Jincheng3870682453-hash
+
+> **允许**：查看、学习、研究、个人使用、非商业修改与分发
+> **禁止**：任何商业用途（商用、售卖、提供商业服务）——如需商业授权，请通过 [GitHub Issues](https://github.com/jincheng3870682453-hash/shujuku/issues) 联系作者
+> 协议全文见 [LICENSE](LICENSE)
 
 ---
 
