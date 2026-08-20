@@ -25,7 +25,7 @@ jobs:
       - name: Build EXE
         run: |
           cd electron
-          npm run make
+          npx electron-builder --win --x64
 
       - name: Upload EXE
         uses: actions/upload-artifact@v4
