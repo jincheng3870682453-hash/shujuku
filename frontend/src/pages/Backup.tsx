@@ -123,7 +123,7 @@ function Backup() {
   return (
     <>
       {contextHolder}
-      <Card className="glass-card" style={{ marginBottom: 16 }}>
+      <Card style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <Title level={4} style={{ margin: 0 }}>备份恢复</Title>
           <Space wrap>
@@ -133,7 +133,7 @@ function Backup() {
         </div>
       </Card>
 
-      <Card className="glass-card" style={{ marginBottom: 16 }}>
+      <Card style={{ marginBottom: 16 }}>
         <Title level={5} style={{ marginBottom: 12 }}>恢复数据库</Title>
         <Spin spinning={restoreLoading} tip="正在恢复…">
           <Dragger {...uploadProps}>
@@ -144,7 +144,7 @@ function Backup() {
         </Spin>
       </Card>
 
-      <Card className="glass-card">
+      <Card>
         <Title level={5} style={{ marginBottom: 12 }}>历史备份<Tag style={{ marginLeft: 8 }}>{backups?.length ?? 0} 个文件</Tag></Title>
         <Spin spinning={isLoading}>
           <Table<BackupInfo> columns={columns} dataSource={backups ?? []} rowKey="filename" size="middle" pagination={{ pageSize: 20, showTotal: (total) => `共 ${total} 个备份` }} locale={{ emptyText: '暂无备份文件，点击「立即备份」创建' }} />

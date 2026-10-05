@@ -30,7 +30,7 @@ export default function PrivacyPolicy() {
       {/* ── 标题 ── */}
       <div style={{ marginBottom: 24 }}>
         <Title level={3} style={{ marginBottom: 4 }}>
-          <SafetyOutlined style={{ marginRight: 8, color: "#5e6ad2" }} />
+          <SafetyOutlined style={{ marginRight: 8, color: "var(--accent)" }} />
           隐私政策 & 使用教程
         </Title>
         <Text type="secondary">
@@ -42,7 +42,7 @@ export default function PrivacyPolicy() {
       <Card
         title={
           <span>
-            <FileTextOutlined style={{ marginRight: 6, color: "#1677ff" }} />
+            <FileTextOutlined style={{ marginRight: 6, color: "var(--accent)" }} />
             AI 数据分析使用教程
           </span>
         }
@@ -251,7 +251,7 @@ export default function PrivacyPolicy() {
       <Card
         title={
           <span>
-            <LockOutlined style={{ marginRight: 6, color: "#52c41a" }} />
+            <LockOutlined style={{ marginRight: 6, color: "var(--success)" }} />
             隐私政策 & 数据安全
           </span>
         }
@@ -333,7 +333,7 @@ export default function PrivacyPolicy() {
       <Card
         title={
           <span>
-            <ApiOutlined style={{ marginRight: 6, color: "#fa8c16" }} />
+            <ApiOutlined style={{ marginRight: 6, color: "var(--warning)" }} />
             技术说明
           </span>
         }

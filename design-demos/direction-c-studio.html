@@ -1,0 +1,1302 @@
+<!DOCTYPE html>
+<!--
+方向 C · 最佳设计师逻辑
+
+① 选定设计师 + 原因
+选定 Dieter Rams。这个产品不是展示品牌个性的消费品，而是 HR 与管理员每天长时间操作的企业工具；
+Rams 对“有用、易懂、克制、耐久、细节彻底”的坚持，比追逐短期视觉潮流更适合高密度登记、核对与审核。
+本方案借用他的判断方式，不复刻任何具体产品外观。
+
+② 使用的设计哲学
+- 少，却更好：统计、工具、上传与表格压进一条连续操作路径，删去装饰性层级。
+- 好设计使产品易懂：编辑单元格有稳定底纹、角标与 hover 提示；危险操作单独进入红色防护区。
+- 好设计不喧宾夺主：颜色只表达状态和动作，纸白、墨黑、工业绿构成长期工作的低疲劳底色。
+- 好设计在细节上完整：真表格、明确行列边界、斑马纹、等宽数字、键盘可用状态、真实分页语义。
+
+③ form 来自内容的哪里
+form 来自“字段可自由增删”的产品本质：列不是静态文字，而是可被定义、编辑、核对的对象。
+因此整套界面以“可操作的列轨道 / 精密登记册”为母题：稳定纵向列线负责定位，横向记录带负责扫描，
+操作集中在表格上缘，像一台只保留必要控制件的数据仪器。
+
+④ CSS 变量体系
+- 色彩：--paper-*（背景层）、--ink-*（文字层）、--line-*（结构线）、--accent-*（主动作）、
+  --success / --warning / --danger（只用于功能状态）。
+- 尺度：--space-1 至 --space-7，基于 4px；--radius-1/2/3 控制 2/6/10px 圆角。
+- 排印：--font-ui、--font-index、--text-xs/sm/md/lg/xl/2xl；所有数字启用 tabular-nums。
+- 阴影：--shadow-lift 只用于弹层，常规层级依靠底色与边线，不靠漂浮卡片。
+所有组件只引用这些变量，可直接映射到 Ant Design 5 ConfigProvider theme token。
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>动态数据登记系统 · 方向 C</title>
+  <style>
+    :root {
+      --paper-0: #fffef9;
+      --paper-1: #f5f4ed;
+      --paper-2: #ebece5;
+      --paper-3: #dfe2da;
+      --ink-950: #171a18;
+      --ink-800: #2b302c;
+      --ink-650: #484f49;
+      --ink-500: #697169;
+      --ink-350: #8c938c;
+      --line-strong: #aeb5ad;
+      --line: #cfd4cc;
+      --line-soft: #e2e5de;
+      --accent: #215b49;
+      --accent-hover: #184738;
+      --accent-soft: #e2eee8;
+      --success: #267051;
+      --success-soft: #e1efe7;
+      --warning: #8a6008;
+      --warning-soft: #f5ecd5;
+      --danger: #a13730;
+      --danger-hover: #842a25;
+      --danger-soft: #f6e5e2;
+      --white: #ffffff;
+
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-7: 32px;
+
+      --radius-1: 2px;
+      --radius-2: 6px;
+      --radius-3: 10px;
+
+      --font-ui: "Segoe UI Variable", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      --font-index: "Bahnschrift", "DIN Alternate", "Segoe UI", sans-serif;
+      --text-xs: 12px;
+      --text-sm: 14px;
+      --text-md: 16px;
+      --text-lg: 20px;
+      --text-xl: 26px;
+      --text-2xl: 34px;
+
+      --shadow-lift: 0 18px 50px rgba(23, 26, 24, 0.18);
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      background: var(--paper-2);
+      color: var(--ink-950);
+      font-family: var(--font-ui);
+      font-synthesis: none;
+      line-break: strict;
+      overflow-wrap: break-word;
+    }
+
+    body {
+      margin: 0;
+      min-width: 1180px;
+      min-height: 100vh;
+      background: var(--paper-1);
+      color: var(--ink-950);
+      font-size: var(--text-sm);
+      line-height: 1.55;
+      overflow: hidden;
+    }
+
+    button, input, select { font: inherit; }
+    button { color: inherit; }
+    h1, h2, h3, p { margin: 0; }
+    h1, h2, h3 { text-wrap: balance; }
+    p { text-wrap: pretty; }
+
+    .prototype-bar {
+      height: 48px;
+      display: grid;
+      grid-template-columns: 184px 1fr auto;
+      align-items: stretch;
+      background: var(--ink-950);
+      color: var(--white);
+      border-bottom: 1px solid #2d332f;
+    }
+
+    .prototype-mark {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: 0 var(--space-4);
+      border-right: 1px solid #343a35;
+      font-family: var(--font-index);
+      letter-spacing: 0.04em;
+    }
+
+    .prototype-mark strong {
+      display: grid;
+      place-items: center;
+      width: 26px;
+      height: 26px;
+      border: 1px solid #858d86;
+      font-size: var(--text-xs);
+      font-weight: 650;
+    }
+
+    .prototype-mark span { font-size: var(--text-xs); color: #c7ccc7; }
+
+    .view-tabs {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      padding-left: var(--space-4);
+    }
+
+    .view-tab {
+      position: relative;
+      min-width: 112px;
+      padding: 0 var(--space-4);
+      border: 0;
+      background: transparent;
+      color: #afb6b0;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: var(--text-sm);
+    }
+
+    .view-tab:hover { color: var(--white); background: #202521; }
+    .view-tab.active { color: var(--white); }
+    .view-tab.active::after {
+      content: "";
+      position: absolute;
+      left: var(--space-4);
+      right: var(--space-4);
+      bottom: 0;
+      height: 3px;
+      background: #7fb59e;
+    }
+
+    .prototype-meta {
+      align-self: center;
+      padding: 0 var(--space-5);
+      color: #9fa7a0;
+      font-family: var(--font-index);
+      font-size: var(--text-xs);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.06em;
+    }
+
+    .stage {
+      height: calc(100vh - 78px);
+      min-height: 722px;
+      background: var(--paper-1);
+    }
+
+    .screen { display: none; width: 100%; height: 100%; }
+    .screen.active { display: block; }
+
+    .design-note {
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-top: 1px solid var(--line-strong);
+      background: var(--paper-2);
+      color: var(--ink-650);
+      font-size: var(--text-xs);
+      letter-spacing: 0.02em;
+    }
+
+    .login-screen {
+      display: none;
+      grid-template-columns: minmax(0, 1fr) 480px;
+      background: var(--paper-0);
+    }
+    .login-screen.active { display: grid; }
+
+    .login-intro {
+      position: relative;
+      display: grid;
+      grid-template-rows: 1fr auto;
+      padding: 68px 72px 54px;
+      overflow: hidden;
+      background:
+        linear-gradient(var(--line-soft) 1px, transparent 1px),
+        linear-gradient(90deg, var(--line-soft) 1px, transparent 1px),
+        var(--paper-1);
+      background-size: 72px 72px;
+    }
+
+    .login-intro::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 72px;
+      width: 4px;
+      background: var(--accent);
+    }
+
+    .login-copy {
+      align-self: center;
+      max-width: 650px;
+      padding-left: 48px;
+    }
+
+    .eyebrow {
+      margin-bottom: var(--space-4);
+      color: var(--accent);
+      font-family: var(--font-index);
+      font-size: var(--text-xs);
+      font-weight: 650;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .login-copy h1 {
+      max-width: 9em;
+      color: var(--ink-950);
+      font-size: clamp(38px, 4vw, 62px);
+      line-height: 1.14;
+      font-weight: 620;
+      letter-spacing: -0.01em;
+    }
+
+    .login-copy p {
+      max-width: 32em;
+      margin-top: var(--space-6);
+      color: var(--ink-650);
+      font-size: var(--text-md);
+      line-height: 1.8;
+    }
+
+    .system-specs {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      margin-left: 48px;
+      border-top: 1px solid var(--line-strong);
+      border-bottom: 1px solid var(--line-strong);
+    }
+
+    .system-spec {
+      min-height: 80px;
+      padding: var(--space-4);
+      border-right: 1px solid var(--line);
+    }
+    .system-spec:last-child { border-right: 0; }
+    .system-spec span {
+      display: block;
+      color: var(--ink-500);
+      font-size: var(--text-xs);
+      margin-bottom: var(--space-2);
+    }
+    .system-spec strong { font-size: var(--text-sm); font-weight: 650; }
+
+    .login-panel {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 56px;
+      border-left: 1px solid var(--line-strong);
+      background: var(--paper-0);
+    }
+
+    .login-index {
+      margin-bottom: 56px;
+      color: var(--ink-350);
+      font-family: var(--font-index);
+      font-size: var(--text-xs);
+      letter-spacing: 0.12em;
+    }
+
+    .login-panel h2 { font-size: var(--text-xl); font-weight: 650; }
+    .login-panel .subcopy { margin-top: var(--space-2); color: var(--ink-500); }
+
+    .form-stack { display: grid; gap: var(--space-5); margin-top: 40px; }
+    .field { display: grid; gap: var(--space-2); }
+    .field label { color: var(--ink-650); font-size: var(--text-sm); font-weight: 600; }
+
+    .control {
+      height: 44px;
+      width: 100%;
+      padding: 0 var(--space-3);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-1);
+      outline: none;
+      background: var(--white);
+      color: var(--ink-950);
+      transition: border-color 150ms, box-shadow 150ms;
+    }
+    .control:hover { border-color: var(--ink-650); }
+    .control:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+    .primary-button {
+      height: 44px;
+      border: 1px solid var(--accent);
+      border-radius: var(--radius-1);
+      background: var(--accent);
+      color: var(--white);
+      cursor: pointer;
+      font-weight: 650;
+      letter-spacing: 0.12em;
+    }
+    .primary-button:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+    .login-help {
+      margin-top: var(--space-5);
+      color: var(--ink-500);
+      font-size: var(--text-xs);
+      text-align: center;
+    }
+
+    .app-screen.active { display: grid; grid-template-columns: 184px minmax(0, 1fr); }
+
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      background: #202420;
+      color: #eef1ed;
+      border-right: 1px solid #373c37;
+    }
+
+    .brand-block {
+      height: 76px;
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: 0 var(--space-4);
+      border-bottom: 1px solid #3c423d;
+    }
+
+    .brand-monogram {
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      width: 34px;
+      height: 34px;
+      border: 1px solid #7c857d;
+      font-family: var(--font-index);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    .brand-name { font-size: var(--text-sm); font-weight: 650; line-height: 1.35; }
+    .brand-version { color: #9ea69f; font-size: var(--text-xs); font-family: var(--font-index); }
+
+    .side-menu {
+      display: grid;
+      gap: 2px;
+      padding: var(--space-3) var(--space-2);
+      list-style: none;
+      margin: 0;
+    }
+
+    .side-menu button {
+      width: 100%;
+      min-height: 38px;
+      display: grid;
+      grid-template-columns: 28px 1fr auto;
+      align-items: center;
+      padding: 0 var(--space-3);
+      border: 0;
+      border-radius: var(--radius-1);
+      background: transparent;
+      color: #bfc6c0;
+      text-align: left;
+      cursor: pointer;
+      font-size: var(--text-sm);
+    }
+
+    .side-menu button:hover { background: #2b302c; color: var(--white); }
+    .side-menu button.active {
+      background: #e3eee8;
+      color: #173e31;
+      font-weight: 650;
+    }
+
+    .menu-code {
+      color: #879088;
+      font-family: var(--font-index);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+    .side-menu button.active .menu-code { color: var(--accent); }
+
+    .badge {
+      min-width: 22px;
+      height: 20px;
+      display: inline-grid;
+      place-items: center;
+      padding: 0 6px;
+      border-radius: 10px;
+      background: var(--danger);
+      color: var(--white);
+      font-family: var(--font-index);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .user-block {
+      margin-top: auto;
+      display: grid;
+      grid-template-columns: 34px 1fr;
+      gap: var(--space-3);
+      align-items: center;
+      padding: var(--space-4);
+      border-top: 1px solid #3c423d;
+    }
+
+    .avatar {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: #dfe9e3;
+      color: #224b3d;
+      font-weight: 700;
+    }
+    .user-name { font-size: var(--text-sm); font-weight: 650; }
+    .user-role { color: #9fa7a0; font-size: var(--text-xs); }
+
+    .app-frame { min-width: 0; display: grid; grid-template-rows: 52px minmax(0, 1fr); }
+
+    .appbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 var(--space-5);
+      border-bottom: 1px solid var(--line-strong);
+      background: var(--paper-0);
+    }
+
+    .appbar-left, .appbar-right { display: flex; align-items: center; gap: var(--space-3); }
+    .app-title { font-size: var(--text-sm); font-weight: 650; }
+    .divider { width: 1px; height: 18px; background: var(--line); }
+    .app-context { color: var(--ink-500); font-size: var(--text-xs); }
+    .appbar-status {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      color: var(--ink-650);
+      font-size: var(--text-xs);
+    }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); }
+
+    .workspace-host { min-height: 0; overflow: hidden; }
+    .workspace { display: none; height: 100%; overflow: auto; padding: var(--space-4) var(--space-5); }
+    .workspace.active { display: block; }
+
+    .page-heading {
+      min-height: 58px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--space-5);
+    }
+
+    .title-group { display: flex; align-items: flex-start; gap: var(--space-4); }
+    .title-index {
+      margin-top: 5px;
+      color: var(--accent);
+      font-family: var(--font-index);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+    }
+    .page-heading h1 { font-size: var(--text-xl); line-height: 1.25; font-weight: 650; }
+    .page-subtitle { margin-top: var(--space-1); color: var(--ink-500); font-size: var(--text-xs); }
+
+    .stats-strip {
+      display: flex;
+      align-items: stretch;
+      border: 1px solid var(--line-strong);
+      background: var(--paper-0);
+    }
+    .compact-stat {
+      min-width: 112px;
+      padding: 7px var(--space-3);
+      border-right: 1px solid var(--line);
+    }
+    .compact-stat:last-child { border-right: 0; }
+    .compact-stat span { display: block; color: var(--ink-500); font-size: var(--text-xs); }
+    .compact-stat strong { display: block; margin-top: 1px; font-family: var(--font-index); font-size: var(--text-md); }
+    .compact-stat .running { color: var(--success); font-family: var(--font-ui); font-size: var(--text-sm); }
+
+    .command-deck {
+      position: relative;
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-1);
+      border: 1px solid var(--line-strong);
+      background: var(--paper-0);
+    }
+
+    .search-box {
+      width: 248px;
+      height: 32px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-1);
+      background: var(--paper-0);
+      color: var(--ink-950);
+      outline: none;
+    }
+    .search-box:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+
+    .button {
+      height: 32px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 0 11px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-1);
+      background: var(--paper-0);
+      color: var(--ink-800);
+      cursor: pointer;
+      white-space: nowrap;
+      font-size: var(--text-xs);
+      font-weight: 600;
+    }
+    .button:hover { border-color: var(--ink-650); background: var(--paper-1); }
+    .button.primary { background: var(--accent); border-color: var(--accent); color: var(--white); }
+    .button.primary:hover { background: var(--accent-hover); }
+    .button.danger { color: var(--danger); border-color: #d9aaa5; background: var(--danger-soft); }
+    .button.danger:hover { color: var(--white); background: var(--danger); border-color: var(--danger); }
+    .button.link { border-color: transparent; background: transparent; color: var(--accent); }
+    .button.link:hover { background: var(--accent-soft); }
+
+    .tool-separator { width: 1px; height: 22px; margin: 0 2px; background: var(--line); }
+    .spacer { flex: 1; }
+
+    .danger-cluster {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding-left: var(--space-2);
+      border-left: 2px solid #d9aaa5;
+    }
+    .danger-label {
+      margin-right: 2px;
+      color: var(--danger);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    .upload-rail {
+      min-height: 36px;
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      margin-top: var(--space-2);
+      padding: 0 var(--space-3);
+      border: 1px dashed var(--line-strong);
+      background: var(--paper-2);
+      color: var(--ink-650);
+      cursor: pointer;
+      font-size: var(--text-xs);
+    }
+    .upload-rail:hover { border-color: var(--accent); background: var(--accent-soft); }
+    .upload-code {
+      color: var(--accent);
+      font-family: var(--font-index);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+    }
+    .upload-rail strong { color: var(--ink-800); font-weight: 650; }
+    .upload-meta { margin-left: auto; color: var(--ink-500); }
+
+    .table-shell {
+      margin-top: var(--space-2);
+      border: 1px solid var(--line-strong);
+      background: var(--paper-0);
+      overflow: hidden;
+    }
+
+    .table-meta {
+      min-height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 var(--space-3);
+      border-bottom: 1px solid var(--line-strong);
+      background: var(--paper-2);
+      color: var(--ink-650);
+      font-size: var(--text-xs);
+    }
+
+    .edit-legend { display: flex; align-items: center; gap: var(--space-2); }
+    .edit-swatch {
+      width: 14px;
+      height: 14px;
+      border: 1px dashed var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .data-table-wrap { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      color: var(--ink-800);
+      font-variant-numeric: tabular-nums slashed-zero;
+    }
+    th, td {
+      height: 44px;
+      padding: 0 var(--space-3);
+      border-right: 1px solid var(--line-soft);
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      white-space: nowrap;
+      vertical-align: middle;
+      font-size: var(--text-sm);
+    }
+    th:last-child, td:last-child { border-right: 0; }
+    thead th {
+      height: 38px;
+      background: #e7e8e1;
+      color: var(--ink-650);
+      font-size: var(--text-xs);
+      font-weight: 700;
+    }
+    tbody tr:nth-child(even) td { background: #f5f5ef; }
+    tbody tr:hover td { background: #edf2ed; }
+    tbody tr:last-child td { border-bottom: 0; }
+    .row-index { width: 44px; color: var(--ink-500); font-family: var(--font-index); text-align: center; }
+    .cell-name { font-weight: 650; color: var(--ink-950); }
+    .cell-id { font-family: var(--font-index); font-size: var(--text-xs); }
+    .cell-note { width: 270px; max-width: 270px; overflow: hidden; text-overflow: ellipsis; }
+
+    td.editable {
+      position: relative;
+      cursor: text;
+      background-image: linear-gradient(to right, var(--line-strong) 45%, transparent 45%);
+      background-position: left calc(100% - 5px);
+      background-size: 5px 1px;
+      background-repeat: repeat-x;
+    }
+    tbody tr:nth-child(even) td.editable { background-color: #f5f5ef; }
+    td.editable::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 0;
+      height: 0;
+      border-top: 7px solid var(--accent);
+      border-left: 7px solid transparent;
+      opacity: 0.46;
+    }
+    td.editable::after {
+      content: "双击编辑";
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      padding: 2px 5px;
+      border: 1px solid #9fb9aa;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 650;
+      opacity: 0;
+      pointer-events: none;
+    }
+    td.editable:hover { outline: 2px solid var(--accent); outline-offset: -2px; padding-right: 70px; }
+    td.editable:hover::after { opacity: 1; }
+    td.editable.editing { padding: 4px; background: var(--white); }
+    td.editable.editing::after, td.editable.editing::before { display: none; }
+    .cell-editor {
+      width: 100%;
+      height: 34px;
+      padding: 0 8px;
+      border: 2px solid var(--accent);
+      border-radius: 0;
+      outline: none;
+      background: var(--white);
+      color: var(--ink-950);
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 1px 8px;
+      border: 1px solid currentColor;
+      border-radius: 12px;
+      font-size: var(--text-xs);
+      font-weight: 650;
+      line-height: 1;
+    }
+    .tag.success { color: var(--success); background: var(--success-soft); }
+    .tag.warning { color: var(--warning); background: var(--warning-soft); }
+    .tag.danger { color: var(--danger); background: var(--danger-soft); }
+    .tag.neutral { color: var(--ink-650); background: var(--paper-2); }
+    .tag.accent { color: var(--accent); background: var(--accent-soft); }
+
+    .table-footer {
+      min-height: 42px;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      padding: 0 var(--space-3);
+      border-top: 1px solid var(--line-strong);
+      background: var(--paper-0);
+    }
+    .add-row {
+      justify-self: start;
+      height: 28px;
+      padding: 0 10px;
+      border: 1px dashed var(--accent);
+      border-radius: var(--radius-1);
+      background: var(--accent-soft);
+      color: var(--accent);
+      cursor: pointer;
+      font-size: var(--text-xs);
+      font-weight: 650;
+    }
+    .add-row:hover { border-style: solid; background: #d3e5db; }
+    .pagination { display: flex; align-items: center; gap: var(--space-1); }
+    .page-button {
+      min-width: 28px;
+      height: 28px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-1);
+      background: var(--paper-0);
+      cursor: pointer;
+      font-family: var(--font-index);
+      font-size: var(--text-xs);
+    }
+    .page-button.active { border-color: var(--accent); background: var(--accent); color: var(--white); }
+    .page-total { margin-right: var(--space-2); color: var(--ink-500); font-size: var(--text-xs); }
+    .page-size { margin-left: var(--space-2); height: 28px; border: 1px solid var(--line); background: var(--paper-0); font-size: var(--text-xs); }
+    .jump-box { justify-self: end; display: flex; align-items: center; gap: 6px; color: var(--ink-500); font-size: var(--text-xs); }
+    .jump-box input { width: 42px; height: 28px; border: 1px solid var(--line); text-align: center; }
+
+    .read-only-note {
+      min-height: 32px;
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin-top: var(--space-2);
+      padding: 0 var(--space-3);
+      border-left: 3px solid var(--ink-500);
+      background: var(--paper-2);
+      color: var(--ink-650);
+      font-size: var(--text-xs);
+    }
+    .read-only-note strong { color: var(--ink-800); }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      border: 1px solid var(--line-strong);
+      background: var(--paper-0);
+    }
+    .metric-card {
+      min-height: 112px;
+      padding: var(--space-4) var(--space-5);
+      border-right: 1px solid var(--line);
+    }
+    .metric-card:last-child { border-right: 0; }
+    .metric-card span { color: var(--ink-500); font-size: var(--text-xs); }
+    .metric-value {
+      margin-top: var(--space-2);
+      color: var(--ink-950);
+      font-family: var(--font-index);
+      font-size: 32px;
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+    }
+    .metric-foot { margin-top: var(--space-2); color: var(--ink-500); font-size: var(--text-xs); }
+
+    .analytics-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.55fr) minmax(360px, 1fr);
+      gap: var(--space-3);
+      margin-top: var(--space-3);
+    }
+
+    .panel {
+      border: 1px solid var(--line-strong);
+      background: var(--paper-0);
+    }
+    .panel-header {
+      min-height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 var(--space-4);
+      border-bottom: 1px solid var(--line);
+      background: var(--paper-1);
+    }
+    .panel-title { font-size: var(--text-sm); font-weight: 700; }
+    .panel-subtitle { color: var(--ink-500); font-size: var(--text-xs); }
+    .panel-body { padding: var(--space-5); }
+
+    .fill-list { display: grid; gap: var(--space-4); }
+    .fill-row { display: grid; grid-template-columns: 90px 1fr 50px; gap: var(--space-3); align-items: center; }
+    .fill-label { color: var(--ink-650); font-size: var(--text-sm); }
+    .bar-track { height: 10px; background: var(--paper-3); border-left: 1px solid var(--line-strong); }
+    .bar-fill { height: 100%; background: var(--accent); }
+    .fill-value { text-align: right; font-family: var(--font-index); font-size: var(--text-sm); }
+
+    .category-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-6); }
+    .category-select { height: 32px; padding: 0 30px 0 10px; border: 1px solid var(--line); background: var(--paper-0); }
+    .segmented-bar { display: flex; height: 30px; border: 1px solid var(--line-strong); overflow: hidden; }
+    .segment { display: grid; place-items: center; min-width: 36px; color: var(--white); font-family: var(--font-index); font-size: var(--text-xs); font-weight: 700; }
+    .segment.on { flex: 4; background: var(--success); }
+    .segment.trial { flex: 1; background: var(--warning); }
+    .segment.off { flex: 1; background: var(--danger); }
+    .category-legend { display: grid; gap: var(--space-3); margin-top: var(--space-5); }
+    .legend-row { display: grid; grid-template-columns: 12px 1fr auto; gap: var(--space-3); align-items: center; }
+    .legend-chip { width: 12px; height: 12px; }
+    .legend-chip.on { background: var(--success); }
+    .legend-chip.trial { background: var(--warning); }
+    .legend-chip.off { background: var(--danger); }
+    .legend-row strong { font-family: var(--font-index); }
+    .sample-note { margin-top: var(--space-6); padding-top: var(--space-3); border-top: 1px solid var(--line); color: var(--ink-500); font-size: var(--text-xs); }
+
+    .filter-row { display: flex; align-items: center; gap: var(--space-1); }
+    .filter-button {
+      height: 32px;
+      padding: 0 var(--space-3);
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--ink-650);
+      cursor: pointer;
+      font-size: var(--text-xs);
+      font-weight: 650;
+    }
+    .filter-button:hover { background: var(--paper-2); }
+    .filter-button.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+
+    .audit-table { min-width: 1110px; }
+    .audit-table th, .audit-table td { padding: 0 10px; }
+    .audit-table td { height: 54px; }
+    .audit-detail { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+    .audit-actions { display: flex; gap: var(--space-1); }
+    .approve-button, .reject-button {
+      height: 28px;
+      padding: 0 9px;
+      border-radius: var(--radius-1);
+      background: transparent;
+      cursor: pointer;
+      font-size: var(--text-xs);
+      font-weight: 650;
+    }
+    .approve-button { border: 1px solid var(--accent); color: var(--accent); }
+    .approve-button:hover { background: var(--accent); color: var(--white); }
+    .reject-button { border: 1px solid #d3a4a0; color: var(--danger); }
+    .reject-button:hover { background: var(--danger); border-color: var(--danger); color: var(--white); }
+
+    dialog {
+      width: 460px;
+      padding: 0;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-2);
+      background: var(--paper-0);
+      color: var(--ink-950);
+      box-shadow: var(--shadow-lift);
+    }
+    dialog::backdrop { background: rgba(23, 26, 24, 0.48); }
+    .modal-head { padding: var(--space-5); border-bottom: 1px solid var(--line); }
+    .modal-head h3 { color: var(--danger); font-size: var(--text-lg); }
+    .modal-body { padding: var(--space-5); color: var(--ink-650); line-height: 1.75; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: var(--space-2); padding: var(--space-4) var(--space-5); border-top: 1px solid var(--line); background: var(--paper-1); }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 46px;
+      z-index: 20;
+      transform: translate(-50%, 14px);
+      padding: 9px 14px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-1);
+      background: var(--ink-950);
+      color: var(--white);
+      box-shadow: var(--shadow-lift);
+      font-size: var(--text-xs);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 160ms, transform 160ms;
+    }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    @media (max-width: 1280px) {
+      .prototype-bar { grid-template-columns: 168px 1fr auto; }
+      .app-screen.active { grid-template-columns: 168px minmax(0, 1fr); }
+      .view-tab { min-width: 100px; }
+      .compact-stat { min-width: 100px; }
+      .command-deck { overflow-x: auto; }
+      .analytics-grid { grid-template-columns: minmax(0, 1.4fr) minmax(330px, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <header class="prototype-bar" aria-label="设计屏幕切换">
+    <div class="prototype-mark"><strong>C</strong><span>STUDIO / 06</span></div>
+    <nav class="view-tabs" aria-label="四屏切换">
+      <button class="view-tab" data-view="login">登录</button>
+      <button class="view-tab active" data-view="data">数据登记</button>
+      <button class="view-tab" data-view="stats">统计看板</button>
+      <button class="view-tab" data-view="audit">审核中心</button>
+    </nav>
+    <div class="prototype-meta">DYNAMIC REGISTRY · 1440 × 900</div>
+  </header>
+
+  <main class="stage">
+    <section id="loginScreen" class="screen login-screen" aria-label="登录页">
+      <div class="login-intro">
+        <div class="login-copy">
+          <div class="eyebrow">Dynamic Registry / Version 6.0</div>
+          <h1>动态数据<br />登记系统</h1>
+          <p>让字段随着组织变化，让每一次录入、修改与审核都保留清晰的结构。</p>
+        </div>
+        <div class="system-specs" aria-label="系统能力">
+          <div class="system-spec"><span>字段能力</span><strong>7 种动态类型</strong></div>
+          <div class="system-spec"><span>权限模型</span><strong>21 项细粒度权限</strong></div>
+          <div class="system-spec"><span>审核机制</span><strong>三级审核流</strong></div>
+        </div>
+      </div>
+      <div class="login-panel">
+        <div class="login-index">ACCESS / 01</div>
+        <h2>账户登录</h2>
+        <p class="subcopy">请输入账号密码登录</p>
+        <form id="loginForm" class="form-stack">
+          <div class="field">
+            <label for="username">用户名</label>
+            <input id="username" class="control" autocomplete="username" placeholder="请输入用户名" />
+          </div>
+          <div class="field">
+            <label for="password">密码</label>
+            <input id="password" class="control" type="password" autocomplete="current-password" placeholder="请输入密码" />
+          </div>
+          <button class="primary-button" type="submit">登 录</button>
+        </form>
+        <p class="login-help">忘记密码请联系管理员</p>
+      </div>
+    </section>
+
+    <section id="appScreen" class="screen app-screen active" aria-label="系统主界面">
+      <aside class="sidebar">
+        <div class="brand-block">
+          <div class="brand-monogram">DR</div>
+          <div><div class="brand-name">动态数据登记</div><div class="brand-version">VERSION 6.0</div></div>
+        </div>
+        <ul class="side-menu" aria-label="主导航">
+          <li><button data-menu-view="stats"><span class="menu-code">01</span><span>统计看板</span></button></li>
+          <li><button class="active" data-menu-view="data"><span class="menu-code">02</span><span>数据管理</span></button></li>
+          <li><button><span class="menu-code">03</span><span>数据列表</span></button></li>
+          <li><button data-menu-view="audit"><span class="menu-code">04</span><span>审核中心</span><span class="badge">12</span></button></li>
+          <li><button><span class="menu-code">05</span><span>用户管理</span></button></li>
+          <li><button><span class="menu-code">06</span><span>备份管理</span></button></li>
+          <li><button><span class="menu-code">07</span><span>AI 分析</span></button></li>
+          <li><button><span class="menu-code">08</span><span>系统设置</span></button></li>
+          <li><button><span class="menu-code">09</span><span>隐私政策</span></button></li>
+        </ul>
+        <div class="user-block">
+          <div class="avatar">陈</div>
+          <div><div class="user-name">陈静宜</div><div class="user-role">Boss · 系统管理员</div></div>
+        </div>
+      </aside>
+
+      <div class="app-frame">
+        <header class="appbar">
+          <div class="appbar-left">
+            <span class="app-title" id="appBarTitle">数据管理</span>
+            <span class="divider"></span>
+            <span class="app-context">人事主数据表 · 6 个字段</span>
+          </div>
+          <div class="appbar-right">
+            <span class="appbar-status"><span class="status-dot"></span>数据库运行中</span>
+            <span class="divider"></span>
+            <span>待审核</span><span class="badge">12</span>
+          </div>
+        </header>
+
+        <div class="workspace-host">
+          <section id="dataWorkspace" class="workspace active" aria-label="数据登记页">
+            <div class="page-heading">
+              <div class="title-group">
+                <span class="title-index">02 / DATA</span>
+                <div><h1>数据管理</h1><p class="page-subtitle">人事主数据表 · 双击有标记的单元格即可编辑</p></div>
+              </div>
+              <div class="stats-strip" aria-label="数据统计">
+                <div class="compact-stat"><span>总记录数</span><strong>1,284</strong></div>
+                <div class="compact-stat"><span>总列数</span><strong>6</strong></div>
+                <div class="compact-stat"><span>数据状态</span><strong class="running">运行中</strong></div>
+              </div>
+            </div>
+
+            <div class="command-deck" aria-label="数据工具栏">
+              <input id="dataSearch" class="search-box" type="search" placeholder="搜索姓名、工号或部门" />
+              <button class="button" data-toast="数据已刷新">刷新</button>
+              <span class="tool-separator"></span>
+              <button class="button" data-toast="已打开导入流程">导入</button>
+              <button class="button" data-toast="导出任务已创建">导出</button>
+              <button class="button primary" data-toast="总览视图已准备">总览</button>
+              <span class="spacer"></span>
+              <div class="danger-cluster" aria-label="危险操作区">
+                <span class="danger-label">危险操作</span>
+                <button class="button danger" data-danger="清空数据">清空数据</button>
+                <button class="button danger" data-danger="重置系统">重置</button>
+              </div>
+            </div>
+
+            <div class="upload-rail" id="uploadRail" role="button" tabindex="0">
+              <span class="upload-code">XLSX / CSV</span>
+              <strong>拖拽 Excel 文件到此处，或点击选择文件</strong>
+              <span class="upload-meta">导入前将校验 6 个字段</span>
+            </div>
+
+            <div class="table-shell">
+              <div class="table-meta">
+                <span>当前显示 1–6 / 共 1,284 条</span>
+                <span class="edit-legend"><span class="edit-swatch"></span>带底纹与角标的单元格可双击编辑</span>
+              </div>
+              <div class="data-table-wrap">
+                <table id="dataTable" aria-label="人事主数据表">
+                  <colgroup>
+                    <col style="width:44px"><col style="width:110px"><col style="width:120px"><col style="width:150px">
+                    <col style="width:130px"><col style="width:100px"><col><col style="width:76px">
+                  </colgroup>
+                  <thead><tr><th class="row-index">行</th><th>姓名</th><th>工号</th><th>部门</th><th>入职日期</th><th>在职状态</th><th>备注</th><th>操作</th></tr></thead>
+                  <tbody>
+                    <tr><td class="row-index">01</td><td class="cell-name editable">陈静宜</td><td class="cell-id">EMP-1042</td><td class="editable">人力资源部</td><td class="editable">2024-03-18</td><td><span class="tag success">在职</span></td><td class="cell-note editable">2026 年度调薪已完成</td><td><button class="button link" data-toast="删除操作需二次确认">删除</button></td></tr>
+                    <tr><td class="row-index">02</td><td class="cell-name editable">林致远</td><td class="cell-id">EMP-1043</td><td class="editable">技术研发部</td><td class="editable">2024-07-02</td><td><span class="tag success">在职</span></td><td class="cell-note editable">持有高级工程师职称</td><td><button class="button link" data-toast="删除操作需二次确认">删除</button></td></tr>
+                    <tr><td class="row-index">03</td><td class="cell-name editable">苏婉清</td><td class="cell-id">EMP-1044</td><td class="editable">市场运营部</td><td class="editable">2025-01-15</td><td><span class="tag warning">试用</span></td><td class="cell-note editable">—</td><td><button class="button link" data-toast="删除操作需二次确认">删除</button></td></tr>
+                    <tr><td class="row-index">04</td><td class="cell-name editable">郭子昂</td><td class="cell-id">EMP-1045</td><td class="editable">财务审计部</td><td class="editable">2023-11-06</td><td><span class="tag danger">离职</span></td><td class="cell-note editable">合同到期未续签</td><td><button class="button link" data-toast="删除操作需二次确认">删除</button></td></tr>
+                    <tr><td class="row-index">05</td><td class="cell-name editable">何雨桐</td><td class="cell-id">EMP-1046</td><td class="editable">技术研发部</td><td class="editable">2025-04-22</td><td><span class="tag success">在职</span></td><td class="cell-note editable">参与 AI 分析模块开发</td><td><button class="button link" data-toast="删除操作需二次确认">删除</button></td></tr>
+                    <tr><td class="row-index">06</td><td class="cell-name editable">罗嘉宁</td><td class="cell-id">EMP-1047</td><td class="editable">供应链管理部</td><td class="editable">2024-09-30</td><td><span class="tag success">在职</span></td><td class="cell-note editable">—</td><td><button class="button link" data-toast="删除操作需二次确认">删除</button></td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="table-footer">
+                <button class="add-row" data-toast="已在表格末尾创建空白行">点击新增一行数据</button>
+                <div class="pagination" aria-label="分页器">
+                  <span class="page-total">共 1,284 条</span>
+                  <button class="page-button">‹</button><button class="page-button active">1</button><button class="page-button">2</button><button class="page-button">3</button><button class="page-button">4</button><button class="page-button">5</button><button class="page-button">›</button>
+                  <select class="page-size" aria-label="每页条数"><option>10 条/页</option><option selected>20 条/页</option><option>50 条/页</option><option>100 条/页</option></select>
+                </div>
+                <label class="jump-box">跳至 <input value="1" aria-label="页码" /> 页</label>
+              </div>
+            </div>
+
+            <div class="read-only-note"><strong>只读角色提示</strong><span>Employee 角色可查看数据，但修改、删除与导入操作将进入三级审核流。</span></div>
+          </section>
+
+          <section id="statsWorkspace" class="workspace" aria-label="统计看板">
+            <div class="page-heading">
+              <div class="title-group"><span class="title-index">01 / OVERVIEW</span><div><h1>数据总览</h1><p class="page-subtitle">数据概况与完整性分析</p></div></div>
+              <button class="button" data-toast="统计结果已刷新">刷新统计</button>
+            </div>
+
+            <div class="metric-grid" aria-label="关键指标">
+              <article class="metric-card"><span>总记录数</span><div class="metric-value">1,284</div><div class="metric-foot">当前数据表全部记录</div></article>
+              <article class="metric-card"><span>字段数量</span><div class="metric-value">6</div><div class="metric-foot">动态字段结构</div></article>
+              <article class="metric-card"><span>数据完整度</span><div class="metric-value">87%</div><div class="metric-foot">非空字段综合比例</div></article>
+              <article class="metric-card"><span>空值字段</span><div class="metric-value">143</div><div class="metric-foot">建议优先补全备注字段</div></article>
+            </div>
+
+            <div class="analytics-grid">
+              <article class="panel">
+                <header class="panel-header"><div><div class="panel-title">列填充率</div><div class="panel-subtitle">按动态字段比较非空占比</div></div><span class="tag neutral">6 个字段</span></header>
+                <div class="panel-body fill-list">
+                  <div class="fill-row"><span class="fill-label">姓名</span><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><strong class="fill-value">100%</strong></div>
+                  <div class="fill-row"><span class="fill-label">工号</span><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><strong class="fill-value">100%</strong></div>
+                  <div class="fill-row"><span class="fill-label">部门</span><div class="bar-track"><div class="bar-fill" style="width:98%"></div></div><strong class="fill-value">98%</strong></div>
+                  <div class="fill-row"><span class="fill-label">入职日期</span><div class="bar-track"><div class="bar-fill" style="width:94%"></div></div><strong class="fill-value">94%</strong></div>
+                  <div class="fill-row"><span class="fill-label">在职状态</span><div class="bar-track"><div class="bar-fill" style="width:89%"></div></div><strong class="fill-value">89%</strong></div>
+                  <div class="fill-row"><span class="fill-label">备注</span><div class="bar-track"><div class="bar-fill" style="width:41%"></div></div><strong class="fill-value">41%</strong></div>
+                </div>
+              </article>
+
+              <article class="panel">
+                <header class="panel-header"><div><div class="panel-title">分类分布</div><div class="panel-subtitle">下拉字段选项分布</div></div></header>
+                <div class="panel-body">
+                  <div class="category-head"><span>查看字段</span><select class="category-select"><option>在职状态</option></select></div>
+                  <div class="segmented-bar" aria-label="在职状态分布"><div class="segment on">4</div><div class="segment trial">1</div><div class="segment off">1</div></div>
+                  <div class="category-legend">
+                    <div class="legend-row"><span class="legend-chip on"></span><span>在职</span><strong>4</strong></div>
+                    <div class="legend-row"><span class="legend-chip trial"></span><span>试用</span><strong>1</strong></div>
+                    <div class="legend-row"><span class="legend-chip off"></span><span>离职</span><strong>1</strong></div>
+                  </div>
+                  <div class="sample-note">当前页样本 · 6 条记录。分类条使用表格内真实状态值。</div>
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <section id="auditWorkspace" class="workspace" aria-label="审核中心">
+            <div class="page-heading">
+              <div class="title-group"><span class="title-index">04 / AUDIT</span><div><h1>审核中心</h1><p class="page-subtitle">三级审核流 · 当前显示待审核申请</p></div></div>
+              <div class="filter-row">
+                <input id="auditSearch" class="search-box" type="search" placeholder="搜索申请人或详情" />
+                <button class="button" data-toast="审核列表已刷新">刷新</button>
+              </div>
+            </div>
+
+            <div class="command-deck">
+              <div class="filter-row" role="tablist" aria-label="审核状态筛选">
+                <button class="filter-button">全部</button>
+                <button class="filter-button active">待审核 <span class="badge">12</span></button>
+                <button class="filter-button">已通过</button>
+                <button class="filter-button">已驳回</button>
+              </div>
+              <span class="spacer"></span>
+              <span class="app-context">按提交时间从新到旧</span>
+            </div>
+
+            <div class="table-shell">
+              <div class="data-table-wrap">
+                <table class="audit-table" id="auditTable" aria-label="审核申请表">
+                  <thead><tr><th>类型</th><th>申请人</th><th>申请角色</th><th>详情</th><th>状态</th><th>审核人</th><th>审核意见</th><th>提交时间</th><th>操作</th></tr></thead>
+                  <tbody>
+                    <tr><td><span class="tag accent">新增数据</span></td><td class="cell-name">陈静宜</td><td>HR</td><td class="audit-detail">新增员工基础档案</td><td><span class="tag warning">待审核</span></td><td>待分配</td><td>—</td><td>今天 09:42</td><td><div class="audit-actions"><button class="approve-button">通过</button><button class="reject-button">驳回</button></div></td></tr>
+                    <tr><td><span class="tag neutral">修改字段配置</span></td><td class="cell-name">林致远</td><td>HR</td><td class="audit-detail">调整「部门」字段选项</td><td><span class="tag warning">待审核</span></td><td>待分配</td><td>—</td><td>今天 09:18</td><td><div class="audit-actions"><button class="approve-button">通过</button><button class="reject-button">驳回</button></div></td></tr>
+                    <tr><td><span class="tag danger">删除数据</span></td><td class="cell-name">苏婉清</td><td>Employee</td><td class="audit-detail">删除本人测试记录</td><td><span class="tag warning">待审核</span></td><td>待分配</td><td>—</td><td>昨天 17:26</td><td><div class="audit-actions"><button class="approve-button">通过</button><button class="reject-button">驳回</button></div></td></tr>
+                    <tr><td><span class="tag accent">添加用户</span></td><td class="cell-name">郭子昂</td><td>HR</td><td class="audit-detail">创建财务部录入账号</td><td><span class="tag warning">待审核</span></td><td>待分配</td><td>—</td><td>昨天 16:04</td><td><div class="audit-actions"><button class="approve-button">通过</button><button class="reject-button">驳回</button></div></td></tr>
+                    <tr><td><span class="tag danger">清空日志</span></td><td class="cell-name">何雨桐</td><td>HR</td><td class="audit-detail">清空个人操作日志</td><td><span class="tag warning">待审核</span></td><td>待分配</td><td>—</td><td>昨天 14:35</td><td><div class="audit-actions"><button class="approve-button">通过</button><button class="reject-button">驳回</button></div></td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="table-footer">
+                <span class="page-total">共 12 条待审核</span>
+                <div class="pagination"><button class="page-button">‹</button><button class="page-button active">1</button><button class="page-button">2</button><button class="page-button">›</button></div>
+                <label class="jump-box">每页 <select class="page-size"><option>10 条</option><option>20 条</option></select></label>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="design-note">方向 C：以工业理性重组信息层级，让列成为可操作对象；用清晰网格、克制色彩和受保护的危险区服务长时间高频工作。</footer>
+
+  <dialog id="dangerDialog" aria-labelledby="dangerTitle">
+    <div class="modal-head"><h3 id="dangerTitle">确认危险操作</h3></div>
+    <div class="modal-body"><p id="dangerCopy">此操作会影响现有数据，提交后仍需通过三级审核流。请确认操作对象和影响范围。</p></div>
+    <div class="modal-actions"><button class="button" id="cancelDanger">取消</button><button class="button danger" id="confirmDanger">确认并提交审核</button></div>
+  </dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    const viewTabs = document.querySelectorAll('.view-tab');
+    const loginScreen = document.getElementById('loginScreen');
+    const appScreen = document.getElementById('appScreen');
+    const workspaces = {
+      data: document.getElementById('dataWorkspace'),
+      stats: document.getElementById('statsWorkspace'),
+      audit: document.getElementById('auditWorkspace')
+    };
+    const viewTitles = { data: '数据管理', stats: '统计看板', audit: '审核中心' };
+    const appBarTitle = document.getElementById('appBarTitle');
+
+    function switchView(view) {
+      viewTabs.forEach(tab => tab.classList.toggle('active', tab.dataset.view === view));
+      if (view === 'login') {
+        loginScreen.classList.add('active');
+        appScreen.classList.remove('active');
+        return;
+      }
+      loginScreen.classList.remove('active');
+      appScreen.classList.add('active');
+      Object.entries(workspaces).forEach(([name, node]) => node.classList.toggle('active', name === view));
+      document.querySelectorAll('[data-menu-view]').forEach(button => button.classList.toggle('active', button.dataset.menuView === view));
+      appBarTitle.textContent = viewTitles[view];
+    }
+
+    viewTabs.forEach(tab => tab.addEventListener('click', () => switchView(tab.dataset.view)));
+    document.querySelectorAll('[data-menu-view]').forEach(button => button.addEventListener('click', () => {
+      const view = button.dataset.menuView;
+      switchView(view);
+    }));
+
+    let toastTimer;
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 1800);
+    }
+
+    document.querySelectorAll('[data-toast]').forEach(button => button.addEventListener('click', () => showToast(button.dataset.toast)));
+    document.getElementById('loginForm').addEventListener('submit', event => {
+      event.preventDefault();
+      showToast('演示模式：登录表单已验证');
+    });
+
+    const dangerDialog = document.getElementById('dangerDialog');
+    const dangerTitle = document.getElementById('dangerTitle');
+    document.querySelectorAll('[data-danger]').forEach(button => button.addEventListener('click', () => {
+      dangerTitle.textContent = `确认${button.dataset.danger}`;
+      dangerDialog.showModal();
+    }));
+    document.getElementById('cancelDanger').addEventListener('click', () => dangerDialog.close());
+    document.getElementById('confirmDanger').addEventListener('click', () => {
+      dangerDialog.close();
+      showToast('危险操作已提交三级审核');
+    });
+
+    document.querySelectorAll('td.editable').forEach(cell => cell.addEventListener('dblclick', () => {
+      if (cell.classList.contains('editing')) return;
+      const original = cell.textContent.trim();
+      cell.classList.add('editing');
+      cell.innerHTML = `<input class="cell-editor" value="${original.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" aria-label="编辑单元格" />`;
+      const input = cell.querySelector('input');
+      input.focus();
+      input.select();
+      const commit = () => {
+        const nextValue = input.value.trim() || '—';
+        cell.textContent = nextValue;
+        cell.classList.remove('editing');
+        showToast('单元格已更新');
+      };
+      input.addEventListener('blur', commit, { once: true });
+      input.addEventListener('keydown', event => {
+        if (event.key === 'Enter') input.blur();
+        if (event.key === 'Escape') { input.value = original; input.blur(); }
+      });
+    }));
+
+    document.getElementById('dataSearch').addEventListener('input', event => {
+      const keyword = event.target.value.trim().toLowerCase();
+      document.querySelectorAll('#dataTable tbody tr').forEach(row => {
+        row.hidden = keyword && !row.textContent.toLowerCase().includes(keyword);
+      });
+    });
+
+    document.getElementById('auditSearch').addEventListener('input', event => {
+      const keyword = event.target.value.trim().toLowerCase();
+      document.querySelectorAll('#auditTable tbody tr').forEach(row => {
+        row.hidden = keyword && !row.textContent.toLowerCase().includes(keyword);
+      });
+    });
+
+    document.querySelectorAll('.filter-button').forEach(button => button.addEventListener('click', () => {
+      document.querySelectorAll('.filter-button').forEach(item => item.classList.remove('active'));
+      button.classList.add('active');
+      showToast(`已切换至「${button.textContent.trim().replace(/\s+12$/, '')}」`);
+    }));
+
+    document.querySelectorAll('.approve-button, .reject-button').forEach(button => button.addEventListener('click', () => {
+      const action = button.classList.contains('approve-button') ? '通过' : '驳回';
+      showToast(`${action}操作已进入确认流程`);
+    }));
+
+    const uploadRail = document.getElementById('uploadRail');
+    const openUpload = () => showToast('文件选择器将在正式 AntD Upload 中打开');
+    uploadRail.addEventListener('click', openUpload);
+    uploadRail.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') openUpload();
+    });
+  </script>
+</body>
+</html>

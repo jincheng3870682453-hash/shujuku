@@ -8,7 +8,7 @@ interface PlaceholderPageProps {
 
 function PlaceholderPage({ title }: PlaceholderPageProps) {
   return (
-    <Card className="glass-card">
+    <Card>
       <Result
         status="info"
         title={<Title level={4}>{title}</Title>}

@@ -33,7 +33,7 @@ interface ThemeColors {
 }
 
 const DEFAULT_THEME: ThemeColors = {
-  primaryColor: '#5e6ad2', backgroundColor: '#08090a', cardColor: '#0f1011', textColor: '#e5e5e6', cardOpacity: 80,
+  primaryColor: '#1b61c9', backgroundColor: '#f4f4f1', cardColor: '#ffffff', textColor: '#181d26', cardOpacity: 100,
 };
 
 function loadTheme(): ThemeColors {
@@ -63,11 +63,8 @@ function saveBgImage(base64: string | null) {
 /* ================================================================
    2.1  默认渐变背景（双层光晕：紫色 + 蓝色，底层 #0A0A0F）
    ================================================================ */
-const DEFAULT_BG_GRADIENT = [
-  'radial-gradient(ellipse 80% 50% at 20% 0%, rgba(124,58,237,0.12), transparent)',
-  'radial-gradient(ellipse 60% 40% at 80% 100%, rgba(59,130,246,0.08), transparent)',
-  '#0A0A0F',
-].join(',');
+/** 默认背景：跟随设计系统画布色（B 版为干净画布，不再叠加紫色光晕渐变） */
+const DEFAULT_BG_GRADIENT = 'var(--surface-canvas)';
 
 function applyDefaultGradientBg() {
   document.body.style.background = DEFAULT_BG_GRADIENT;
@@ -420,7 +417,7 @@ function Settings() {
   const themeTab = (
     <>
       {/* 自定义配色 */}
-      <Card className="glass-card" style={{ marginBottom: 16 }}>
+      <Card style={{ marginBottom: 16 }}>
         <Title level={5}><BgColorsOutlined style={{ marginRight: 8 }} />自定义配色</Title>
         <Alert message="配色实时生效，自动保存到本地浏览器，重新打开页面时自动恢复" type="info" showIcon style={{ marginBottom: 16 }} />
         <Form layout="vertical" style={{ maxWidth: 560 }}>
@@ -580,7 +577,7 @@ function Settings() {
       </Card>
 
       {/* 自定义背景图 */}
-      <Card className="glass-card">
+      <Card>
         <Title level={5}><PictureOutlined style={{ marginRight: 8 }} />自定义背景图</Title>
         <Alert message="上传背景图会替换登录页和主界面的纯色渐变背景。图片以 base64 存储在本地浏览器中，最大支持 5MB。" type="info" showIcon style={{ marginBottom: 16 }} />
 
@@ -691,7 +688,7 @@ function Settings() {
   };
 
   const textureTab = (
-    <Card className="glass-card">
+    <Card>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title level={5} style={{ margin: 0 }}><EyeOutlined style={{ marginRight: 8 }} />背景质感</Title>
         <Button icon={<SwapOutlined />} onClick={handleRandomTexture} size="small">
@@ -896,7 +893,7 @@ function Settings() {
   );
 
   const policyTab = (
-    <Card className="glass-card">
+    <Card>
       <div style={{ maxHeight: 'calc(100vh - 240px)', overflow: 'auto', paddingRight: 8 }}>
         <Title level={4}>隐私政策</Title>
         <Paragraph type="secondary">更新日期：2026年8月13日</Paragraph>
@@ -1111,7 +1108,7 @@ function Settings() {
   );
 
   const dbTab = (
-    <Card className="glass-card">
+    <Card>
       <Spin spinning={isLoading}>
         <Descriptions title="当前状态" bordered size="small" column={{ xs: 1, sm: 2 }} style={{ marginBottom: 24 }}>
           <Descriptions.Item label="数据库引擎"><Tag color={settings?.db_engine === 'mysql' ? 'blue' : 'green'}>{settings?.db_engine === 'mysql' ? 'MySQL' : 'SQLite'}</Tag></Descriptions.Item>
@@ -1145,7 +1142,7 @@ function Settings() {
   return (
     <>
       {contextHolder}
-      <Card className="glass-card" style={{ marginBottom: 16 }}>
+      <Card style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <Title level={4} style={{ margin: 0 }}>系统设置</Title>
           <Button icon={<ReloadOutlined />} onClick={() => queryClient.invalidateQueries({ queryKey: ['settings'] })}>刷新</Button>

@@ -27,7 +27,7 @@ interface ThemeColors {
 }
 
 const DEFAULT_THEME: ThemeColors = {
-  primaryColor: '#5e6ad2', backgroundColor: '#08090a', cardColor: '#0f1011', textColor: '#e5e5e6',
+  primaryColor: '#1b61c9', backgroundColor: '#f4f4f1', cardColor: '#ffffff', textColor: '#181d26',
 };
 
 function loadTheme(): ThemeColors {

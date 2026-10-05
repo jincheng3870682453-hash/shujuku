@@ -7,6 +7,7 @@ import {
 import ReactECharts from 'echarts-for-react';
 import { useQuery } from '@tanstack/react-query';
 import { statsApi } from '../api/stats';
+import { chartColors as defaultChartColors } from '../styles/pageStyles';
 
 const { Text } = Typography;
 
@@ -20,13 +21,11 @@ const CHART_OPTIONS: { value: ChartType; label: string; icon: React.ReactNode }[
   { value: 'scatter', label: '散点图', icon: <DotChartOutlined /> },
 ];
 
-// ── 默认色板 ──
-const DEFAULT_COLORS = [
-  '#5e6ad2', '#02b8cc', '#27a644', '#f0a020', '#eb5757',
-  '#8b5cf6', '#ec4899', '#f97316', '#06b6d4', '#a78bfa',
-];
+// ── 默认色板：复用设计系统内的亮色图表色盘 ──
+const DEFAULT_COLORS = defaultChartColors;
 
 // ── HSL 工具 ──
+// ECharts 渐变计算需要具体颜色值，因此仅对 chartColors 或用户自定义色动态派生，不写死色值。
 function hexToHsl(hex: string): [number, number, number] {
   let r = 0, g = 0, b = 0;
   const h = hex.replace('#', '');
@@ -136,9 +135,9 @@ export default function Charts() {
         backgroundColor: 'transparent',
         tooltip: {
           trigger: 'item' as const,
-          backgroundColor: '#1a1b1e',
-          borderColor: '#2a2b30',
-          textStyle: { color: '#e5e5e6' },
+          backgroundColor: 'var(--surface-base)',
+          borderColor: 'var(--line-frame)',
+          textStyle: { color: 'var(--ink-default)' },
           formatter: '{b}: {c} ({d}%)',
         },
         legend: {
@@ -146,19 +145,19 @@ export default function Charts() {
           orient: 'vertical' as const,
           right: '3%',
           top: 'center',
-          textStyle: { color: '#8a8f98', fontSize: 12 },
+          textStyle: { color: 'var(--ink-muted)', fontSize: 12 },
         },
         toolbox: {
           feature: { saveAsImage: { title: '保存' } },
-          iconStyle: { borderColor: '#8a8f98' },
+          iconStyle: { borderColor: 'var(--ink-muted)' },
         },
         series: [{
           type: 'pie',
           radius: ['42%', '72%'],
           center: ['40%', '50%'],
           avoidLabelOverlap: false,
-          itemStyle: { borderRadius: 4, borderColor: '#131316', borderWidth: 2 },
-          label: { show: true, position: 'outside' as const, color: '#8a8f98', fontSize: 11 },
+          itemStyle: { borderRadius: 4, borderColor: 'var(--surface-base)', borderWidth: 2 },
+          label: { show: true, position: 'outside' as const, color: 'var(--ink-muted)', fontSize: 11 },
           emphasis: { label: { show: true, fontSize: 15, fontWeight: 'bold' as const } },
           data: fieldStats.items.map((item: { name: string; value: number }, i: number) => ({
             name: item.name,
@@ -173,19 +172,19 @@ export default function Charts() {
     const categoryAxis = {
       type: 'category' as const,
       data: names,
-      axisLine: { lineStyle: { color: '#2a2b30' } },
-      axisTick: { lineStyle: { color: '#2a2b30' } },
+      axisLine: { lineStyle: { color: 'var(--line-col)' } },
+      axisTick: { lineStyle: { color: 'var(--line-col)' } },
       axisLabel: {
-        color: '#8a8f98', fontSize: 11,
+        color: 'var(--ink-muted)', fontSize: 11,
         rotate: names.length > 10 ? 45 : 0,
         interval: 0, overflow: 'truncate' as const, width: 100,
       },
     };
     const valueAxis = {
       type: 'value' as const,
-      axisLine: { lineStyle: { color: '#2a2b30' } },
-      axisLabel: { color: '#8a8f98' },
-      splitLine: { lineStyle: { color: '#1e1f23' } },
+      axisLine: { lineStyle: { color: 'var(--line-col)' } },
+      axisLabel: { color: 'var(--ink-muted)' },
+      splitLine: { lineStyle: { color: 'var(--line-soft)' } },
     };
     const baseGrid = {
       left: '3%', right: '4%',
@@ -194,13 +193,13 @@ export default function Charts() {
     };
     const baseTooltip = {
       trigger: 'axis' as const,
-      backgroundColor: '#1a1b1e',
-      borderColor: '#2a2b30',
-      textStyle: { color: '#e5e5e6', fontSize: 13 },
+      backgroundColor: 'var(--surface-base)',
+      borderColor: 'var(--line-frame)',
+      textStyle: { color: 'var(--ink-default)', fontSize: 13 },
     };
     const toolbox = {
       feature: { saveAsImage: { title: '保存' } },
-      iconStyle: { borderColor: '#8a8f98' },
+      iconStyle: { borderColor: 'var(--ink-muted)' },
     };
 
     // ---------- 柱状图 ----------
@@ -275,7 +274,7 @@ export default function Charts() {
             `值: ${params.value[0]}<br/>计数: ${params.value[1]}`,
         },
         grid: baseGrid, toolbox,
-        xAxis: { ...valueAxis, name: fieldStats.field_label, nameTextStyle: { color: '#8a8f98' } },
+        xAxis: { ...valueAxis, name: fieldStats.field_label, nameTextStyle: { color: 'var(--ink-muted)' } },
         yAxis: valueAxis,
         series: [{
           type: 'scatter',
@@ -291,7 +290,7 @@ export default function Charts() {
                 { offset: 1, color: hexToRgba(primaryColor, 0.2) },
               ] },
           },
-          emphasis: { itemStyle: { borderColor: '#fff', borderWidth: 1 } },
+          emphasis: { itemStyle: { borderColor: 'var(--surface-base)', borderWidth: 1 } },
         }],
       };
     }
@@ -316,13 +315,13 @@ export default function Charts() {
               <div style={{ fontSize: 22, fontWeight: 600, color: primaryColor, letterSpacing: '-0.02em' }}>
                 {fieldStats.total}
               </div>
-              <Text style={{ color: '#62666d', fontSize: 12 }}>记录总数</Text>
+              <Text style={{ color: 'var(--ink-muted)', fontSize: 12 }}>记录总数</Text>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 22, fontWeight: 600, color: secondaryColor, letterSpacing: '-0.02em' }}>
                 {fieldStats.items.length}
               </div>
-              <Text style={{ color: '#62666d', fontSize: 12 }}>分类数</Text>
+              <Text style={{ color: 'var(--ink-muted)', fontSize: 12 }}>分类数</Text>
             </div>
           </div>
         )}
@@ -332,7 +331,7 @@ export default function Charts() {
       <div className="card-surface" style={{ marginBottom: 16, padding: '16px 20px' }}>
         <Space size="large" wrap align="start">
           <div>
-            <Text style={{ color: '#8a8f98', fontSize: 12, display: 'block', marginBottom: 6 }}>
+            <Text style={{ color: 'var(--ink-muted)', fontSize: 12, display: 'block', marginBottom: 6 }}>
               选择字段
             </Text>
             <Select
@@ -350,7 +349,7 @@ export default function Charts() {
           </div>
 
           <div>
-            <Text style={{ color: '#8a8f98', fontSize: 12, display: 'block', marginBottom: 6 }}>
+            <Text style={{ color: 'var(--ink-muted)', fontSize: 12, display: 'block', marginBottom: 6 }}>
               图表类型
             </Text>
             <Radio.Group
@@ -379,33 +378,33 @@ export default function Charts() {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             height: 420, flexDirection: 'column',
           }}>
-            <BarChartOutlined style={{ fontSize: 56, color: '#1e1f23', marginBottom: 16 }} />
-            <Text style={{ color: '#8a8f98', fontSize: 14 }}>请先选择一个字段开始分析</Text>
+            <BarChartOutlined style={{ fontSize: 56, color: 'var(--line-frame)', marginBottom: 16 }} />
+            <Text style={{ color: 'var(--ink-muted)', fontSize: 14 }}>请先选择一个字段开始分析</Text>
           </div>
         ) : statsLoading ? (
           <div style={{ padding: 80, textAlign: 'center' }}>
             <Spin size="large" />
-            <div style={{ marginTop: 12, color: '#62666d', fontSize: 13 }}>正在加载数据...</div>
+            <div style={{ marginTop: 12, color: 'var(--ink-muted)', fontSize: 13 }}>正在加载数据...</div>
           </div>
         ) : noPermission ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 420, flexDirection: 'column' }}>
-            <Text style={{ color: '#eb5757', marginBottom: 8 }}>暂无查看统计数据的权限，请联系管理员开通「查看统计数据」权限</Text>
+            <Text style={{ color: 'var(--danger)', marginBottom: 8 }}>暂无查看统计数据的权限，请联系管理员开通「查看统计数据」权限</Text>
           </div>
         ) : isError ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 420, flexDirection: 'column' }}>
-            <Text style={{ color: '#eb5757', marginBottom: 8 }}>加载统计数据失败，请重试</Text>
+            <Text style={{ color: 'var(--danger)', marginBottom: 8 }}>加载统计数据失败，请重试</Text>
           </div>
         ) : fieldStats && fieldStats.items.length === 0 ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 420, flexDirection: 'column' }}>
-            <Text style={{ color: '#8a8f98' }}>该字段暂无有效数据</Text>
+            <Text style={{ color: 'var(--ink-muted)' }}>该字段暂无有效数据</Text>
           </div>
         ) : chartOption ? (
           <>
             <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-              <Text strong style={{ color: '#e5e5e6', fontSize: 16, letterSpacing: '-0.01em' }}>
+              <Text strong style={{ color: 'var(--ink-primary)', fontSize: 16, letterSpacing: '-0.01em' }}>
                 {fieldStats?.field_label}
               </Text>
-              <Text style={{ color: '#62666d', fontSize: 13 }}>
+              <Text style={{ color: 'var(--ink-muted)', fontSize: 13 }}>
                 共 {fieldStats?.total} 条记录 · {fieldStats?.items.length} 个类别
               </Text>
             </div>

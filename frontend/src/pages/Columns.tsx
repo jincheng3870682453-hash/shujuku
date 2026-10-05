@@ -291,7 +291,7 @@ function Columns() {
   return (
     <>
       {contextHolder}
-      <Card className="glass-card" style={{ overflow: 'auto' }}>
+      <Card style={{ overflow: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
           <Title level={4} style={{ margin: 0 }}>表格设置</Title>
           <Space wrap>

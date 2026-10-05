@@ -346,7 +346,7 @@ function Users() {
   return (
     <>
       {contextHolder}
-      <Card className="glass-card">
+      <Card>
         <div
           style={{
             display: 'flex',

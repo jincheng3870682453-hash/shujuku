@@ -1,10 +1,8 @@
 import { useState } from 'react';
-import { Form, Input, Button, Typography, App } from 'antd';
+import { Form, Input, Button, App } from 'antd';
 import { LockOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../api/auth';
-
-const { Title, Text } = Typography;
 
 export default function Login() {
   const [loading, setLoading] = useState(false);
@@ -33,50 +31,36 @@ export default function Login() {
       alignItems: 'center',
       justifyContent: 'center',
       minHeight: '100vh',
-      background: 'var(--tx-body-bg, #08090a)',
-      fontFamily: "var(--font-sans)",
+      padding: 'var(--space-6)',
+      background: 'var(--surface-canvas)',
+      fontFamily: 'var(--font-sans)',
     }}>
-      {/* 背景装饰 - 使用纹理系统光晕 */}
       <div style={{
-        position: 'fixed',
-        inset: 0,
-        pointerEvents: 'none',
-        background: 'var(--tx-body-gradient)',
-        zIndex: 0,
-      }} />
-
-      <div className="login-card" style={{
         width: 380,
-        padding: '40px 36px',
-        background: 'var(--tx-card-bg, #0f1011)',
-        backdropFilter: 'var(--tx-card-backdrop, none)',
-        WebkitBackdropFilter: 'var(--tx-card-backdrop, none)',
-        borderRadius: 14,
-        border: 'var(--tx-card-border, 0.5px solid #23252a)',
-        boxShadow: 'var(--tx-card-shadow, 0 8px 32px rgba(0,0,0,0.5))',
-        position: 'relative',
-        zIndex: 1,
+        maxWidth: '100%',
+        padding: 'var(--space-8)',
+        background: 'var(--surface-base)',
+        border: '1px solid var(--line-frame)',
+        borderRadius: 'var(--radius-lg)',
+        boxShadow: 'var(--shadow-sm)',
       }}>
-        {/* Logo */}
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+        {/* 品牌标识 + 标题 */}
+        <div style={{ textAlign: 'center', marginBottom: 'var(--space-8)' }}>
           <div style={{
             width: 44,
             height: 44,
-            borderRadius: 12,
-            background: 'var(--brand-accent-dim, rgba(94,106,210,0.12))',
+            borderRadius: 'var(--radius-lg)',
+            background: 'var(--ink-primary)',
+            color: 'var(--ink-inverse)',
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            marginBottom: 16,
+            marginBottom: 'var(--space-4)',
           }}>
-            <LockOutlined style={{ fontSize: 20, color: 'var(--brand-accent, #5e6ad2)' }} />
+            <LockOutlined style={{ fontSize: 20 }} />
           </div>
-          <Title level={3} style={{ margin: 0, color: 'var(--surface-bone, #e5e5e6)', fontWeight: 500, letterSpacing: '-0.01em' }}>
-            动态数据登记系统
-          </Title>
-          <Text style={{ color: 'var(--surface-ash, #62666d)', fontSize: 14, display: 'block', marginTop: 4 }}>
-            请输入账号密码登录
-          </Text>
+          <h1 className="page-title">动态数据登记系统</h1>
+          <p className="page-subtitle" style={{ margin: 'var(--space-1) 0 0' }}>请输入账号密码登录</p>
         </div>
 
         <Form
@@ -90,37 +74,24 @@ export default function Login() {
           <Form.Item
             name="username"
             rules={[{ required: true, message: '请输入用户名' }]}
-            style={{ marginBottom: 16 }}
+            style={{ marginBottom: 'var(--space-4)' }}
           >
+            {/* size="large" → controlHeight 40；圆角取 L3 --radius-md */}
             <Input
               placeholder="用户名"
               autoFocus
-              style={{
-                height: 44,
-                borderRadius: 8,
-                background: 'var(--tx-input-bg, var(--surface-obsidian, #161718))',
-                borderColor: 'var(--surface-smoke, #383b3f)',
-                color: 'var(--surface-mist, #d0d6e0)',
-                fontSize: 15,
-              }}
+              style={{ height: 40, borderRadius: 'var(--radius-md)', fontSize: 'var(--fs-15)' }}
             />
           </Form.Item>
 
           <Form.Item
             name="password"
             rules={[{ required: true, message: '请输入密码' }]}
-            style={{ marginBottom: 24 }}
+            style={{ marginBottom: 'var(--space-6)' }}
           >
             <Input.Password
               placeholder="密码"
-              style={{
-                height: 44,
-                borderRadius: 8,
-                background: 'var(--tx-input-bg, var(--surface-obsidian, #161718))',
-                borderColor: 'var(--surface-smoke, #383b3f)',
-                color: 'var(--surface-mist, #d0d6e0)',
-                fontSize: 15,
-              }}
+              style={{ height: 40, borderRadius: 'var(--radius-md)', fontSize: 'var(--fs-15)' }}
             />
           </Form.Item>
 
@@ -130,14 +101,12 @@ export default function Login() {
               htmlType="submit"
               loading={loading}
               block
+              size="large"
               style={{
-                height: 44,
-                borderRadius: 8,
-                fontSize: 15,
+                height: 40,
+                borderRadius: 'var(--radius-md)',
+                fontSize: 'var(--fs-15)',
                 fontWeight: 500,
-                background: 'var(--brand-accent, #5e6ad2)',
-                border: 'none',
-                boxShadow: 'var(--tx-btn-glow, 0 0 0 1px rgba(94,106,210,0.3), 0 2px 8px rgba(94,106,210,0.2))',
               }}
             >
               登 录
@@ -145,11 +114,9 @@ export default function Login() {
           </Form.Item>
         </Form>
 
-        <div style={{ textAlign: 'center', marginTop: 24 }}>
-          <Text style={{ color: 'var(--surface-smoke, #383b3f)', fontSize: 12 }}>
-            忘记密码请联系管理员
-          </Text>
-        </div>
+        <p className="page-subtitle" style={{ margin: 'var(--space-6) 0 0', textAlign: 'center' }}>
+          忘记密码请联系管理员
+        </p>
       </div>
     </div>
   );

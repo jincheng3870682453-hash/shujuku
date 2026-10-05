@@ -1,109 +1,197 @@
-/* ===== Linear-Inspired Dark Design Tokens ===== */
+/* ================================================================
+   Design Tokens · 三层变量体系
+   选定方向：B · Airtable Grid View 标杆迁移
+   （direction-approved.md 落档于 design-demos/）
+
+   架构决策：彻底消除此前「tokens / textures / AntD token / 行内硬编码」
+   四套并行体系，收敛为单一事实源：
+
+     L1 原始层  --c-*        只放色值，不出现语义
+     L2 语义层  --surface-*  --ink-*  --line-*  --accent-*  --status-*
+     L3 度量层  --row-h --col-head-h --viewbar-h --topbar-h --sidebar-w
+                --space-* --radius-* --fs-* --ease --t-*
+
+   铁律：组件只引用 L2 / L3，禁止直接写 L1 或硬编码色值。
+   ================================================================ */
 
 :root {
-  /* ── Surface Hierarchy ── */
-  --surface-void:      #08090a;   /* 页面画布，最底层 */
-  --surface-carbon:    #0f1011;   /* 卡片、面板主表面 */
-  --surface-obsidian:  #161718;   /* 抬高面板、嵌套区域 */
-  --surface-graphite:  #23252a;   /* 交互悬停、幽灵按钮背景 */
-  --surface-smoke:     #383b3f;   /* 高对比边框 */
-  --surface-ash:       #62666d;   /* 非激活图标、辅助元数据 */
-  --surface-fog:       #8a8f98;   /* 占位符、三级文字 */
-  --surface-mist:      #d0d6e0;   /* 正文、二级标题 */
-  --surface-bone:      #e5e5e6;   /* 高对比按钮文字、一级标题 */
-  --surface-paper:     #ffffff;   /* 最高对比文字 */
+  /* ══════════════════════════════════════════════════════════════
+     L1 · 原始色（Airtable 实站计算样式拆解，仅色值，无语义）
+     ══════════════════════════════════════════════════════════════ */
+  --c-white:    #ffffff;
 
-  /* ── Brand & Accent ── */
-  --brand-accent:      #5e6ad2;   /* 品牌强调色（紫蓝，替代Linear的Acid Lime） */
-  --brand-accent-hover:#7378e0;
-  --brand-accent-dim:  rgba(94, 106, 210, 0.15);
-  --brand-accent-soft: rgba(94, 106, 210, 0.08);
+  --c-ink-900:  #181d26;   /* Airtable Ink      · 主文字 */
+  --c-ink-700:  #3d444d;   /* Airtable Ink soft · 正文 */
+  --c-ink-500:  #5c6470;
+  --c-ink-400:  #6e6e6e;   /* Airtable Muted    · 弱化文字 */
 
-  /* ── Semantic Colors ── */
-  --success:           #27a644;
-  --success-dim:       rgba(39, 166, 68, 0.15);
-  --danger:            #eb5757;
-  --danger-dim:        rgba(235, 87, 87, 0.15);
-  --warning:           #f0a020;
-  --warning-dim:       rgba(240, 160, 32, 0.15);
-  --info:              #02b8cc;
-  --info-dim:          rgba(2, 184, 204, 0.15);
+  --c-gray-025: #fafaf8;
+  --c-gray-050: #f4f4f1;
+  --c-gray-100: #ededea;
+  --c-gray-150: #e3e3df;
+  --c-gray-200: #d8d8d3;
+  --c-gray-300: #c2c2bc;
 
-  /* ── Text Color Aliases（全站统一文本配色） ── */
-  --text-primary:      var(--surface-bone);    /* 标题 / 强调 */
-  --text-default:      var(--surface-mist);    /* 正文 */
-  --text-secondary:    var(--surface-fog);     /* 辅助文字 */
-  --text-tertiary:     var(--surface-ash);     /* 弱化文字 */
-  --text-inverse:      var(--surface-paper);   /* 反色（深底白字） */
+  --c-blue-050: #eef4fc;
+  --c-blue-100: #dbe7f8;
+  --c-blue-600: #1b61c9;   /* Airtable Blue · 交互强调 */
+  --c-blue-700: #17529f;
 
-  /* ── Surface Aliases ── */
-  --surface-card:      var(--surface-carbon);  /* 卡片面板 */
+  --c-green-050: #dcf1e3;
+  --c-green-500: #2f8f52;
+  --c-green-700: #14622f;
 
-  /* ── Radius Extras ── */
-  --radius-xl:         16px;                   /* 特大圆角 */
+  --c-amber-050: #fcefc7;
+  --c-amber-500: #c98a00;
+  --c-amber-700: #7a4e00;
 
-  /* ── Typography ── */
-  --font-sans:         'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-  --font-mono:         'JetBrains Mono', 'SF Mono', 'Fira Code', 'Consolas', monospace;
-  --font-size-caption: 13px;
-  --font-size-body-sm: 15px;
-  --font-size-body:    16px;
-  --font-size-body-lg: 17px;
-  --font-size-heading: 24px;
-  --font-size-title:   20px;
-  --font-weight-normal:400;
-  --font-weight-medium:510;
-  --font-weight-strong:590;
-  --line-height-tight: 1.2;
-  --line-height-body:  1.5;
-  --line-height-relaxed:1.6;
+  --c-red-050:   #fbe0e0;
+  --c-red-500:   #c0392b;
+  --c-red-600:   #b42318;
+  --c-red-700:   #a12424;
 
-  /* ── Spacing (4px grid) ── */
-  --space-1:  4px;
-  --space-2:  8px;
-  --space-3:  12px;
-  --space-4:  16px;
-  --space-5:  20px;
-  --space-6:  24px;
-  --space-7:  28px;
-  --space-8:  32px;
-  --space-9:  36px;
-  --space-10: 40px;
+  --c-neutral-050: #f1f1ee;
+
+  /* ══════════════════════════════════════════════════════════════
+     L2 · 语义层（组件唯一允许引用的层级）
+     ══════════════════════════════════════════════════════════════ */
+
+  /* — 表面 — */
+  --surface-canvas: var(--c-gray-050);   /* 页面画布底 */
+  --surface-base:   var(--c-white);      /* 表格 / 面板主表面 */
+  --surface-sunken: var(--c-gray-025);   /* 表头 / 斑马行 / 次级面板 */
+  --surface-hover:  var(--c-gray-050);   /* 悬停面 */
+  --surface-active: var(--c-blue-050);   /* 选中面 */
+
+  /* — 文字 — */
+  --ink-primary: var(--c-ink-900);       /* 标题 / 强调 */
+  --ink-default: var(--c-ink-700);       /* 正文 */
+  --ink-muted:   var(--c-ink-400);       /* 辅助 / 占位 */
+  --ink-inverse: var(--c-white);         /* 反色（深底白字） */
+
+  /* — 线 — */
+  --line-col:   var(--c-gray-150);       /* 竖列分隔线：结构线 */
+  --line-row:   var(--c-gray-150);       /* 行分隔线：1px 实色，不再 0.5px 半透明 */
+  --line-soft:  var(--c-gray-100);
+  --line-frame: var(--c-gray-200);       /* 外框 / 顶栏底边 */
+
+  /* — 强调 — */
+  --accent:        var(--c-blue-600);
+  --accent-strong: var(--c-blue-700);
+  --accent-wash:   var(--c-blue-050);
+  --accent-line:   var(--c-blue-100);
+
+  /* — 状态 pill（浅底 + 深字，对比度 ≥ 5.4:1）— */
+  --status-on-bg:   var(--c-green-050);  --status-on-fg:   var(--c-green-700);  --status-on-bar:   var(--c-green-500);
+  --status-try-bg:  var(--c-amber-050);  --status-try-fg:  var(--c-amber-700);  --status-try-bar:  var(--c-amber-500);
+  --status-off-bg:  var(--c-neutral-050);--status-off-fg:  #5a5f66;             --status-off-bar:  var(--c-gray-300);
+  --status-wait-bg: var(--c-amber-050);  --status-wait-fg: var(--c-amber-700);
+  --status-pass-bg: var(--c-green-050);  --status-pass-fg: var(--c-green-700);
+  --status-deny-bg: var(--c-red-050);    --status-deny-fg: var(--c-red-700);
+  --status-info-bg: var(--c-blue-050);   --status-info-fg: var(--c-blue-700);
+
+  /* — 语义色 — */
+  --success:      var(--c-green-500);
+  --success-dim:  var(--c-green-050);
+  --warning:      var(--c-amber-500);
+  --warning-dim:  var(--c-amber-050);
+  --danger:       var(--c-red-600);
+  --danger-dim:   var(--c-red-050);
+  --info:         var(--c-blue-600);
+  --info-dim:     var(--c-blue-050);
+
+  /* ══════════════════════════════════════════════════════════════
+     L3 · 度量层
+     ══════════════════════════════════════════════════════════════ */
+
+  /* — 布局尺寸（B 版实测值）— */
+  --sidebar-w:    236px;
+  --topbar-h:     48px;
+  --viewbar-h:    44px;   /* 登记条：标题 + 统计 + 工具同处一带 */
+  --col-head-h:   44px;
+  --row-h:        40px;
+  --page-max-w:   1440px;
+
+  /* — 间距（4px 栅格）— */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
   --space-12: 48px;
-  --space-16: 64px;
-  --space-20: 80px;
-  --space-24: 96px;
 
-  /* ── Border Radius ── */
-  --radius-sm:   4px;      /* 徽章、小标签 */
-  --radius-md:   6px;      /* 按钮、输入框 */
-  --radius-lg:   12px;     /* 卡片（最大不超过12px） */
-  --radius-full: 9999px;   /* 胶囊/药丸 */
+  /* — 圆角 — */
+  --radius-xs:   2px;
+  --radius-sm:   4px;
+  --radius-md:   6px;
+  --radius-lg:   10px;
+  --radius-xl:   12px;
+  --radius-pill: 999px;
 
-  /* ── Borders ── */
-  --border-subtle:  0.5px solid var(--surface-graphite);
-  --border-default: 1px solid var(--surface-graphite);
-  --border-strong:  1px solid var(--surface-smoke);
-  --border-accent:  1px solid var(--brand-accent);
+  /* — 字号 — */
+  --fs-11: 11px; --fs-12: 12px; --fs-13: 13px; --fs-14: 14px;
+  --fs-15: 15px; --fs-17: 17px; --fs-20: 20px; --fs-28: 28px;
 
-  /* ── Shadows (极少使用，以边框替代) ── */
-  --shadow-sm: 0px 2px 4px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0px 4px 12px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0px 8px 24px rgba(0, 0, 0, 0.6);
-  --shadow-card: inset 0 0 0 1px var(--surface-graphite);
+  /* — 字体 — */
+  --font-sans: "Inter", "Public Sans", -apple-system, BlinkMacSystemFont,
+               "Segoe UI", "PingFang SC", "Hiragino Sans GB",
+               "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", Consolas, monospace;
 
-  /* ── Transitions ── */
-  --transition-fast:   120ms cubic-bezier(0.25, 0.1, 0.25, 1);
-  --transition-default: 200ms cubic-bezier(0.25, 0.1, 0.25, 1);
-  --transition-slow:   300ms cubic-bezier(0.25, 0.1, 0.25, 1);
+  /* — 动效 — */
+  --ease:   cubic-bezier(0.4, 0, 0.2, 1);
+  --t-fast: 120ms var(--ease);
+  --t-base: 180ms var(--ease);
 
-  /* ── Layout ── */
-  --sidebar-width:      220px;
-  --sidebar-collapsed:  60px;
-  --topbar-height:      48px;
-  --page-max-width:     1200px;
+  /* ══════════════════════════════════════════════════════════════
+     兼容别名层 —— 指向 L2，供尚未重构的页面过渡使用
+     ⚠️ 新写的代码一律直接用 L2/L3，不要再引用这一层。
+        本层会在重构完成后整体删除。
 
-  /* ── Z-Index ── */
+     其中 --accent-default 与 --surface-root 此前从未定义，
+     导致「品牌强调色 / 背景色」两个自定义控件写入空值——此处补齐即修复该 Bug。
+     ══════════════════════════════════════════════════════════════ */
+
+  /* — 此前断链、现补齐（修复自定义配色失效）— */
+  --accent-default: var(--accent);
+  --accent-hover:   var(--accent-strong);
+  --accent-active:  var(--accent-strong);
+  --surface-root:   var(--surface-canvas);
+
+  /* — 文本别名 — */
+  --text-primary:   var(--ink-primary);
+  --text-default:   var(--ink-default);
+  --text-secondary: var(--ink-default);
+  --text-tertiary:  var(--ink-muted);
+  --text-inverse:   var(--ink-inverse);
+
+  /* — 表面别名 — */
+  --surface-card:     var(--surface-base);
+  --surface-carbon:   var(--surface-base);
+  --surface-obsidian: var(--surface-sunken);
+  --surface-graphite: var(--c-gray-150);
+  --surface-smoke:    var(--c-gray-200);
+  --surface-ash:      var(--c-ink-400);
+  --surface-fog:      var(--c-ink-500);
+  --surface-mist:     var(--c-ink-700);
+  --surface-bone:     var(--c-ink-900);
+  --surface-paper:    var(--c-white);
+
+  /* — 强调别名 — */
+  --brand-accent:       var(--accent);
+  --brand-accent-hover: var(--accent-strong);
+  --brand-accent-dim:   var(--accent-wash);
+  --brand-accent-soft:  var(--accent-wash);
+
+  /* — 边框别名（完整 border 值）— */
+  --border-subtle:  1px solid var(--line-soft);
+  --border-default: 1px solid var(--line-col);
+  --border-strong:  1px solid var(--line-frame);
+  --border-accent:  1px solid var(--accent);
+
+  /* — 阴影（极少使用，以边框为主）— */
+  --shadow-sm: 0 1px 2px rgba(24, 29, 38, 0.06);
+  --shadow-md: 0 2px 8px rgba(24, 29, 38, 0.10);
+  --shadow-lg: 0 8px 24px rgba(24, 29, 38, 0.14);
+
+  /* — Z 轴 — */
   --z-sidebar:  100;
   --z-topbar:   200;
   --z-dropdown: 300;

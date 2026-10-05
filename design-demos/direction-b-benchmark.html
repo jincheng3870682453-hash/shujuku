@@ -1,0 +1,1351 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>动态数据登记系统 · 设计方向 B（现实参照：Airtable）</title>
+
+<!--
+================================================================================
+ 设计方向 B · 现实参照（标杆迁移）
+================================================================================
+
+ ① 参照的真实产品 + 核实来源
+ ------------------------------------------------------------------------
+ 参照对象：Airtable（Grid View / Base 工作区界面），不是它的营销站。
+ Airtable 与本项目的功能同构度最高：字段可增删并有类型、单元格级内联编辑、
+ 视图/筛选/分组、行级与字段级权限。
+
+ 核实来源（均为本次实检，非训练语料断言）：
+ - opendesign.cc/en/sites/airtable —— 实站计算样式拆解：Ink #181D26 /
+   Ink soft #444444 / BG #FFFFFF / BG soft #F8FAFC / Muted #6E6E6E /
+   Line rgba(24,29,38,0.12)；4px 间距栅格；圆角 4 / 8 / 12 / pill；
+   easing cubic-bezier(0.4,0,0.2,1)。
+ - designbycurio.com/learn/airtable-spreadsheet-rainbow —— 其设计语言条目：
+   「白色网格画布是结构骨架，行由细低对比分隔线切开；饱和圆角 tag-pill 是
+   分类的主要机制而非装饰；金色 CTA 作为品牌锚点」。
+ - support.airtable.com/docs/grid-view —— 默认短行高以密度优先；首列冻结；
+   列宽/行高可切换；隐藏字段；展开记录。
+ - support.airtable.com/docs/accessibility-in-airtable —— 网格是单一 tabstop，
+   方向键导航，Enter 进入单元格编辑，Esc 退出。
+ - partners.zapier.com/blog/airtable-views —— 记录着色：网格视图中「首字段
+   左侧出现一条填充色竖条」；冻结列以蓝色分隔条标记。
+
+ ② 拆解后被迁移的设计语言（只迁移方法论，不抄皮）
+ ------------------------------------------------------------------------
+ 1. 白色网格画布 + 列是一等公民：竖列分隔线是真实结构线（不只画行线），
+    列头带字段类型标识，首列冻结。
+       → 落到本项目 = 「活体列」母题 + 解决病灶①（串行）。
+ 2. 单元格即编辑点：hover 出描边、选中出 2px accent 描边并内嵌输入控件，
+    键盘 Enter/Esc 语义。
+       → 解决病灶②（内联编辑可发现性）。
+ 3. 破坏性操作不进主工具条：Airtable 把「删除字段/删除表」压在列头下拉
+    菜单深处并只用红色文字，主视图条保持全中性。
+       → 解决病灶③（清空/重置与导入导出同权重）。
+ 4. 视图条（view bar）合流：视图名 / 筛选 / 分组 / 行高 / 隐藏字段 共用
+    一条 48px 横条，不叠层。
+       → 解决病灶④（统计条+工具栏+拖拽区三层占高）。
+ 5. 单选项彩色 pill 承担「状态」这一个扫读维度，其余全部灰度。
+ 6. 单一 token 体系贯穿（见 ④）。
+ * 主动丢弃：Airtable 的金色品牌 CTA（消费级暖意，不符合本产品"可信、
+   精密、克制"的企业语境），交互强调色改用 Airtable Blue #1B61C9。
+
+ ③ form 来自内容的哪里
+ ------------------------------------------------------------------------
+ 内容事实：本产品的列是「用户自己定义、会长出来」的（7 种字段类型，
+ 可增删）。这一条内容属性直接推出 form —— 不是"表格好看"，而是
+ **把列做成可见的结构对象**：
+   · 列头下方常驻字段类型字样（文本 / 数字 / 日期 / 下拉 / 长文本 / 文件）
+   · 竖向列分隔线（列与列之间是硬边界，不是渐变空白）
+   · 首列冻结 + 行号沟槽 + 记录着色竖条（行是有身份的记录）
+   · 表格底部常驻「点击新增一行数据」（容器还在长大）
+   · 底部汇总栏（每列自己的聚合口径，随字段类型变化）
+ 母题 = spec 第 8 节的「活体列」+「登记册」，由"字段可动态定义"推出，
+ 不是由风格偏好推出。
+
+ ④ CSS 变量体系（一套贯穿，三层）
+ ------------------------------------------------------------------------
+ L1 原始层  --c-*            只放色值，不出现语义
+ L2 语义层  --surface-*      画布 / 主表面 / 下沉面 / 悬停面
+            --ink-*          主文 / 次文 / 弱文 / 反文
+            --line-*         列线 / 行线 / 强线
+            --accent-*       交互强调 + 选中态
+            --status-*       在岗 / 试用 / 离职 / 驳回 / 危险（pill 浅底+深字）
+ L3 度量层  --row-h --col-head-h --viewbar-h --topbar-h --sidebar-w
+            --space-* (4px 栅格) --radius-* (2/4/6/10/pill) --fs-*
+ 组件只引用 L2/L3，禁止直接写 L1 之外的硬编码色值。
+================================================================================
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+
+<style>
+/* ══════════════════════════════════════════════════════════════════════
+   L1 · 原始色
+   ══════════════════════════════════════════════════════════════════════ */
+:root{
+  --c-white:#ffffff;
+  --c-ink-900:#181d26;  /* Airtable Ink      */
+  --c-ink-700:#3d444d;  /* Airtable Ink soft */
+  --c-ink-500:#5c6470;
+  --c-ink-400:#6e6e6e;  /* Airtable Muted    */
+
+  --c-gray-025:#fafaf8;
+  --c-gray-050:#f4f4f1;
+  --c-gray-100:#ededea;
+  --c-gray-150:#e3e3df;
+  --c-gray-200:#d8d8d3;
+  --c-gray-300:#c2c2bc;
+
+  --c-blue-050:#eef4fc;
+  --c-blue-100:#dbe7f8;
+  --c-blue-600:#1b61c9;  /* Airtable Blue · 交互强调 */
+  --c-blue-700:#17529f;
+
+  --c-green-050:#dcf1e3; --c-green-500:#2f8f52; --c-green-700:#14622f;
+  --c-amber-050:#fcefc7; --c-amber-500:#c98a00; --c-amber-700:#7a4e00;
+  --c-red-050:#fbe0e0;   --c-red-500:#c0392b;   --c-red-700:#a12424;
+  --c-red-600:#b42318;
+  --c-neutral-050:#f1f1ee;
+
+  --c-frame:#20242b;     /* 演示切换条（非产品界面） */
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   L2 · 语义层
+   ══════════════════════════════════════════════════════════════════════ */
+:root{
+  /* 表面 */
+  --surface-canvas: var(--c-gray-050);   /* 页面底 */
+  --surface-base:   var(--c-white);      /* 表格 / 面板主表面 */
+  --surface-sunken: var(--c-gray-025);   /* 表头、斑马行、次级面板 */
+  --surface-hover:  var(--c-gray-050);
+  --surface-active: var(--c-blue-050);
+
+  /* 文字 */
+  --ink-primary:   var(--c-ink-900);
+  --ink-default:   var(--c-ink-700);
+  --ink-muted:     var(--c-ink-400);
+  --ink-inverse:   var(--c-white);
+
+  /* 线 */
+  --line-col:   var(--c-gray-150);  /* 竖列分隔线：结构线 */
+  --line-row:   var(--c-gray-150);  /* 行分隔线：不再 0.5px 半透明 */
+  --line-soft:  var(--c-gray-100);
+  --line-frame: var(--c-gray-200);
+
+  /* 强调 */
+  --accent:        var(--c-blue-600);
+  --accent-strong: var(--c-blue-700);
+  --accent-wash:   var(--c-blue-050);
+  --accent-line:   var(--c-blue-100);
+
+  /* 状态 pill（浅底 + 深字，对比度均 ≥ 5.4:1） */
+  --status-on-bg:var(--c-green-050);  --status-on-fg:var(--c-green-700);  --status-on-bar:var(--c-green-500);
+  --status-try-bg:var(--c-amber-050); --status-try-fg:var(--c-amber-700); --status-try-bar:var(--c-amber-500);
+  --status-off-bg:var(--c-neutral-050);--status-off-fg:#5a5f66;           --status-off-bar:var(--c-gray-300);
+  --status-wait-bg:var(--c-amber-050);--status-wait-fg:var(--c-amber-700);
+  --status-pass-bg:var(--c-green-050);--status-pass-fg:var(--c-green-700);
+  --status-deny-bg:var(--c-red-050);  --status-deny-fg:var(--c-red-700);
+  --status-info-bg:var(--c-blue-050); --status-info-fg:var(--c-blue-700);
+
+  --danger: var(--c-red-600);
+  --danger-wash: var(--c-red-050);
+
+  /* ══ L3 度量层 ══ */
+  --sidebar-w:236px;
+  --topbar-h:48px;
+  --viewbar-h:44px;
+  --col-head-h:44px;
+  --row-h:40px;
+
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px;
+  --space-5:20px; --space-6:24px; --space-8:32px;
+
+  --radius-xs:2px; --radius-sm:4px; --radius-md:6px; --radius-lg:10px; --radius-pill:999px;
+
+  --fs-11:11px; --fs-12:12px; --fs-13:13px; --fs-14:14px; --fs-15:15px;
+  --fs-17:17px; --fs-20:20px; --fs-28:28px;
+
+  --ease: cubic-bezier(0.4,0,0.2,1);
+  --t-fast:120ms var(--ease);
+  --t-base:180ms var(--ease);
+
+  --note-h:48px;   /* 底部设计说明条 */
+
+  --font-ui:"Public Sans","Noto Sans SC",-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   基础
+   ══════════════════════════════════════════════════════════════════════ */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--font-ui);
+  font-size:var(--fs-14);
+  line-height:1.6;
+  color:var(--ink-default);
+  background:var(--surface-canvas);
+  font-synthesis:none;
+  line-break:strict;
+  -webkit-font-smoothing:antialiased;
+}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input{font:inherit;color:inherit}
+svg{display:block;flex:none}
+.tnum{font-variant-numeric:tabular-nums slashed-zero}
+*::-webkit-scrollbar{width:10px;height:10px}
+*::-webkit-scrollbar-thumb{background:var(--c-gray-300);border-radius:var(--radius-pill);border:3px solid transparent;background-clip:content-box}
+
+/* ══ 演示切换条（非产品界面，仅用于四屏切换） ══ */
+.frame{
+  height:40px;display:flex;align-items:center;gap:var(--space-4);
+  padding:0 var(--space-4);background:var(--c-frame);color:#c8ccd3;
+}
+.frame__label{font-size:var(--fs-12);letter-spacing:.02em}
+.frame__label b{color:#fff;font-weight:600}
+.frame__tabs{display:flex;gap:2px;margin-left:auto}
+.frame__tab{
+  font-size:var(--fs-12);padding:5px 12px;border-radius:var(--radius-sm);
+  color:#a8adb6;transition:var(--t-fast);
+}
+.frame__tab:hover{color:#fff;background:rgba(255,255,255,.06)}
+.frame__tab.is-on{color:#fff;background:rgba(255,255,255,.13);font-weight:600}
+
+/* ══════════════════════════════════════════════════════════════════════
+   外壳：顶栏 + 侧栏 + 全幅内容区
+   ══════════════════════════════════════════════════════════════════════ */
+.shell{
+  height:calc(100vh - 40px - var(--note-h));
+  display:grid;
+  grid-template-columns:var(--sidebar-w) 1fr;
+  grid-template-rows:var(--topbar-h) 1fr;
+}
+.topbar{
+  grid-column:1 / -1;
+  display:flex;align-items:center;gap:var(--space-3);
+  padding:0 var(--space-3) 0 var(--space-3);
+  background:var(--surface-base);
+  border-bottom:1px solid var(--line-frame);
+}
+.crumb{display:flex;align-items:center;gap:var(--space-2);font-size:var(--fs-13);color:var(--ink-muted)}
+.crumb b{color:var(--ink-primary);font-weight:600;font-size:var(--fs-14)}
+.iconbtn{
+  width:28px;height:28px;border-radius:var(--radius-sm);
+  display:grid;place-items:center;color:var(--ink-muted);
+  transition:var(--t-fast);
+}
+.iconbtn:hover{background:var(--surface-hover);color:var(--ink-primary)}
+.topbar__search{
+  margin-left:auto;display:flex;align-items:center;gap:var(--space-2);
+  width:240px;height:28px;padding:0 var(--space-2);
+  background:var(--surface-sunken);
+  border:1px solid transparent;border-radius:var(--radius-md);
+  color:var(--ink-muted);font-size:var(--fs-13);
+}
+.topbar__search:focus-within{border-color:var(--accent);background:var(--surface-base)}
+.topbar__search input{flex:1;min-width:0;border:none;outline:none;background:none;font-size:var(--fs-13)}
+.badge{
+  min-width:18px;height:18px;padding:0 5px;border-radius:var(--radius-pill);
+  background:var(--c-red-600);color:#fff;font-size:var(--fs-11);font-weight:600;
+  display:inline-grid;place-items:center;line-height:1;
+}
+.avatar{
+  width:26px;height:26px;border-radius:var(--radius-pill);
+  display:grid;place-items:center;font-size:var(--fs-12);font-weight:600;color:#fff;
+  background:var(--c-blue-600);flex:none;
+}
+.whoami{display:flex;align-items:center;gap:var(--space-2);padding-left:var(--space-2);border-left:1px solid var(--line-soft)}
+.whoami__n{font-size:var(--fs-13);color:var(--ink-primary);font-weight:500;line-height:1.15}
+.whoami__r{font-size:var(--fs-11);color:var(--ink-muted);line-height:1.15}
+
+/* ── 侧栏：Airtable 的「Base 切换器 + 表/视图列表」两级结构 ── */
+.sidebar{
+  background:var(--surface-sunken);
+  border-right:1px solid var(--line-frame);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.base{padding:var(--space-3);border-bottom:1px solid var(--line-soft)}
+.base__sw{
+  display:flex;align-items:center;gap:var(--space-2);
+  padding:6px var(--space-2);border-radius:var(--radius-md);
+  background:var(--surface-base);border:1px solid var(--line-soft);
+}
+.base__chip{width:16px;height:16px;border-radius:var(--radius-xs);background:var(--c-blue-600);flex:none}
+.base__name{font-size:var(--fs-13);font-weight:600;color:var(--ink-primary);line-height:1.3}
+.base__meta{font-size:var(--fs-11);color:var(--ink-muted);line-height:1.3}
+.base__sw svg{margin-left:auto;color:var(--ink-muted)}
+
+.nav{padding:var(--space-2) var(--space-2) var(--space-3);overflow-y:auto;flex:1}
+.nav__group{font-size:var(--fs-11);color:var(--ink-muted);padding:var(--space-3) var(--space-2) var(--space-1);letter-spacing:.04em}
+.nav__item{
+  position:relative;display:flex;align-items:center;gap:var(--space-2);
+  height:30px;padding:0 var(--space-2);margin-bottom:1px;
+  border-radius:var(--radius-sm);
+  font-size:var(--fs-13);color:var(--ink-default);
+  transition:var(--t-fast);
+}
+.nav__item:hover{background:var(--surface-hover)}
+.nav__item.is-on{background:var(--surface-base);font-weight:600;color:var(--ink-primary)}
+.nav__item.is-on::before{ /* 当前项：左侧色条，不是背景块 */
+  content:"";position:absolute;left:0;top:6px;bottom:6px;width:3px;
+  border-radius:var(--radius-pill);background:var(--accent);
+}
+.nav__item .badge{margin-left:auto}
+.nav__item svg{color:var(--ink-muted)}
+.nav__item.is-on svg{color:var(--accent)}
+.nav__foot{border-top:1px solid var(--line-soft);padding:var(--space-2) var(--space-3);display:flex;align-items:center;gap:var(--space-2)}
+
+/* ── 内容区：全幅，表格贴边 ── */
+.content{overflow:auto;background:var(--surface-base);display:flex;flex-direction:column}
+.pane{display:none;flex:1;flex-direction:column;min-height:0}
+.pane.is-on{display:flex}
+
+/* ══════════════════════════════════════════════════════════════════════
+   登记条 view bar（统计条 + 工具栏 合流，解决病灶④）
+   ══════════════════════════════════════════════════════════════════════ */
+.viewbar{
+  position:sticky;top:0;z-index:6;
+  height:var(--viewbar-h);flex:none;
+  display:flex;align-items:center;gap:var(--space-3);
+  padding:0 var(--space-4);
+  background:var(--surface-base);
+  border-bottom:1px solid var(--line-frame);
+}
+.viewbar__title{font-size:var(--fs-15);font-weight:600;color:var(--ink-primary)}
+.viewbar__view{
+  display:inline-flex;align-items:center;gap:5px;
+  height:24px;padding:0 var(--space-2);border-radius:var(--radius-sm);
+  background:var(--surface-sunken);border:1px solid var(--line-soft);
+  font-size:var(--fs-12);color:var(--ink-default);
+}
+.viewbar__meta{
+  font-size:var(--fs-12);color:var(--ink-muted);
+  padding-left:var(--space-3);margin-left:var(--space-1);
+  border-left:1px solid var(--line-soft);
+}
+.viewbar__meta b{color:var(--ink-primary);font-weight:600}
+.viewbar__meta .dot{display:inline-block;width:6px;height:6px;border-radius:var(--radius-pill);background:var(--c-green-500);margin-right:5px;vertical-align:1px}
+.viewbar__tools{margin-left:auto;display:flex;align-items:center;gap:var(--space-1)}
+
+.tool{
+  display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;
+  border-radius:var(--radius-md);font-size:var(--fs-13);color:var(--ink-default);
+  border:1px solid transparent;transition:var(--t-fast);white-space:nowrap;
+}
+.tool:hover{background:var(--surface-hover);border-color:var(--line-soft)}
+.tool--icon{width:28px;padding:0;justify-content:center}
+.tool--primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.tool--primary:hover{background:var(--accent-strong);border-color:var(--accent-strong)}
+.tool.is-open{background:var(--surface-active);border-color:var(--accent-line)}
+
+.field{
+  display:flex;align-items:center;gap:6px;height:28px;padding:0 var(--space-2);
+  width:200px;border:1px solid var(--line-frame);border-radius:var(--radius-md);
+  background:var(--surface-base);color:var(--ink-muted);
+}
+.field:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-wash)}
+.field input{flex:1;min-width:0;border:none;outline:none;background:none;font-size:var(--fs-13)}
+
+/* ── 危险操作：沉入「更多」下拉，只用红色文字，解决病灶③ ── */
+.menuwrap{position:relative}
+.menu{
+  position:absolute;top:32px;right:0;z-index:20;width:224px;
+  background:var(--surface-base);
+  border:1px solid var(--line-frame);border-radius:var(--radius-md);
+  box-shadow:0 6px 20px rgba(24,29,38,.13);
+  padding:var(--space-1);
+}
+.menu__item{
+  display:flex;align-items:center;gap:var(--space-2);width:100%;
+  height:30px;padding:0 var(--space-2);border-radius:var(--radius-sm);
+  font-size:var(--fs-13);color:var(--ink-default);text-align:left;
+}
+.menu__item:hover{background:var(--surface-hover)}
+.menu__item.is-danger{color:var(--danger)}
+.menu__item.is-danger:hover{background:var(--danger-wash)}
+.menu__note{margin-left:auto;font-size:var(--fs-11);color:var(--ink-muted)}
+.menu__item.is-danger .menu__note{color:var(--danger);opacity:.75}
+.menu__sep{height:1px;background:var(--line-soft);margin:var(--space-1) 0}
+.menu__head{padding:var(--space-2) var(--space-2) var(--space-1);font-size:var(--fs-11);color:var(--ink-muted)}
+
+/* ── 只读角色提示：28px 细条，不再占一大块 ── */
+.robar{
+  height:28px;flex:none;display:flex;align-items:center;gap:6px;
+  padding:0 var(--space-4);font-size:var(--fs-12);
+  color:var(--status-try-fg);background:var(--status-try-bg);
+  border-bottom:1px solid var(--line-soft);
+}
+
+/* ── Excel 拖拽区：由大块压缩为一条 34px 细条，解决病灶④ ── */
+.dropbar{
+  flex:none;margin:var(--space-3) var(--space-4) 0;height:34px;
+  display:flex;align-items:center;gap:var(--space-2);
+  padding:0 var(--space-3);
+  border:1px dashed var(--c-gray-300);border-radius:var(--radius-md);
+  background:var(--surface-sunken);
+  font-size:var(--fs-12);color:var(--ink-muted);
+}
+.dropbar b{color:var(--ink-primary);font-weight:500}
+.dropbar__link{color:var(--accent);font-size:var(--fs-12);text-decoration:underline;text-underline-offset:2px}
+.dropbar .hint{margin-left:auto}
+
+/* ══════════════════════════════════════════════════════════════════════
+   网格（真表格）：列线 + 行线 + 斑马纹，解决病灶①
+   ══════════════════════════════════════════════════════════════════════ */
+.gridwrap{flex:1;min-height:0;overflow:auto;margin-top:var(--space-3)}
+table.grid{border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed}
+table.grid th,table.grid td{
+  height:var(--row-h);padding:0 12px;text-align:left;
+  border-right:1px solid var(--line-col);          /* 竖列线：列是结构 */
+  border-bottom:1px solid var(--line-row);          /* 行线：1px 实色 */
+  font-size:var(--fs-14);vertical-align:middle;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+/* 列头：与登记条连成粘性带 */
+table.grid thead th{
+  position:sticky;top:0;z-index:3;
+  height:var(--col-head-h);padding:6px 12px;
+  background:var(--surface-sunken);
+  border-bottom:1px solid var(--c-gray-200);
+  vertical-align:bottom;
+}
+table.grid thead th .colname{font-size:var(--fs-13);font-weight:600;color:var(--ink-primary);line-height:1.3}
+table.grid thead th .coltype{font-size:var(--fs-11);color:var(--ink-muted);line-height:1.3;font-weight:400}
+/* 首列冻结（Airtable 冻结首字段） */
+th.frozen,td.frozen{position:sticky;left:0;z-index:2;background:var(--surface-base)}
+th.frozen{z-index:4;background:var(--surface-sunken)}
+tbody tr:nth-child(even) td{background:var(--surface-sunken)}      /* 斑马纹：实色，不再 0.015 */
+tbody tr:nth-child(even) td.frozen{background:var(--surface-sunken)}
+tbody tr:hover td{background:var(--surface-hover)}
+tbody tr:hover td.frozen{background:var(--surface-hover)}
+th.gutter,td.gutter{
+  width:52px;padding:0;border-right:1px solid var(--line-col);
+  text-align:center;color:var(--ink-muted);font-size:var(--fs-12);
+}
+th.gutter{position:sticky;left:0;z-index:5;background:var(--surface-sunken)}
+td.gutter{position:sticky;left:0;z-index:2;background:var(--surface-base)}
+tbody tr:nth-child(even) td.gutter{background:var(--surface-sunken)}
+tbody tr:hover td.gutter{background:var(--surface-hover)}
+th.gutter,td.gutter{border-right:1px solid var(--c-gray-200)}
+/* 记录着色：首字段左侧竖色条（Airtable record coloring） */
+td.gutter{position:sticky;left:0}
+.rowbar{position:absolute;left:0;top:0;bottom:0;width:3px}
+td.gutter{position:sticky}
+td.gutter .rowbar{background:var(--status-off-bar)}
+tr[data-st="on"]  td.gutter .rowbar{background:var(--status-on-bar)}
+tr[data-st="try"] td.gutter .rowbar{background:var(--status-try-bar)}
+tr[data-st="off"] td.gutter .rowbar{background:var(--status-off-bar)}
+/* 单元格：可编辑 affordance，解决病灶② */
+td.cell{cursor:text;position:relative}
+td.cell::after{ /* hover 描边 + 右下角铅笔角标 */
+  content:"";position:absolute;inset:3px;border-radius:var(--radius-xs);
+  border:1px solid transparent;pointer-events:none;transition:var(--t-fast);
+}
+td.cell:hover::after{border-color:var(--accent)}
+td.cell .pen{
+  position:absolute;right:4px;bottom:3px;opacity:0;color:var(--accent);
+  transition:var(--t-fast);pointer-events:none;
+}
+td.cell:hover .pen{opacity:1}
+/* 正在编辑态 */
+td.cell.is-editing{background:var(--surface-base)!important;padding:0 4px}
+td.cell.is-editing::after{display:none}
+td.cell.is-editing .editor{
+  display:flex;align-items:center;height:calc(var(--row-h) - 8px);
+  padding:0 6px;border:2px solid var(--accent);border-radius:var(--radius-sm);
+  background:var(--surface-base);box-shadow:0 0 0 3px var(--accent-wash);
+}
+td.cell.is-editing .editor input{width:100%;border:none;outline:none;background:none;font-size:var(--fs-14);color:var(--ink-primary)}
+/* 空值 */
+.nil{color:var(--ink-muted);font-size:var(--fs-13)}
+/* 状态 pill：彩色只服务「状态」这一个维度 */
+.pill{
+  display:inline-flex;align-items:center;height:22px;padding:0 9px;
+  border-radius:var(--radius-pill);font-size:var(--fs-12);font-weight:500;white-space:nowrap;
+}
+.pill--on{background:var(--status-on-bg);color:var(--status-on-fg)}
+.pill--try{background:var(--status-try-bg);color:var(--status-try-fg)}
+.pill--off{background:var(--status-off-bg);color:var(--status-off-fg)}
+.pill--wait{background:var(--status-wait-bg);color:var(--status-wait-fg)}
+.pill--pass{background:var(--status-pass-bg);color:var(--status-pass-fg)}
+.pill--deny{background:var(--status-deny-bg);color:var(--status-deny-fg)}
+.pill--flat{background:var(--c-neutral-050);color:var(--ink-default)}
+/* 操作列 */
+td.ops{text-align:right;white-space:nowrap}
+.link{font-size:var(--fs-13);color:var(--accent)}
+.link:hover{text-decoration:underline;text-underline-offset:2px}
+.link--danger{color:var(--danger)}
+/* 底部新增行 */
+tr.addrow td{height:36px;background:var(--surface-base)!important;border-bottom:none}
+tr.addrow td{border-right:1px solid var(--line-col)}
+.addrow__btn{
+  display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 var(--space-2);
+  border-radius:var(--radius-sm);font-size:var(--fs-13);color:var(--ink-muted);
+  transition:var(--t-fast);
+}
+.addrow__btn:hover{background:var(--surface-hover);color:var(--accent)}
+/* 汇总栏（Airtable summary bar） */
+tr.summary td{
+  position:sticky;bottom:0;height:32px;
+  background:var(--surface-sunken)!important;
+  border-top:1px solid var(--c-gray-200);border-right:1px solid var(--line-col);
+  font-size:var(--fs-12);color:var(--ink-muted);
+}
+tr.summary td b{color:var(--ink-primary);font-weight:600}
+tr.summary td.gutter{font-size:var(--fs-11)}
+/* 表格下方常驻说明：编辑方式明写，不藏 tooltip */
+.gridhint{
+  flex:none;display:flex;align-items:center;gap:6px;
+  padding:var(--space-2) var(--space-4) 0;
+  font-size:var(--fs-12);color:var(--ink-muted);
+}
+.gridhint kbd{
+  font-family:inherit;font-size:var(--fs-11);padding:1px 5px;border-radius:var(--radius-xs);
+  background:var(--surface-sunken);border:1px solid var(--line-frame);color:var(--ink-default);
+}
+/* 分页器 */
+.pager{
+  flex:none;display:flex;align-items:center;gap:var(--space-3);
+  padding:var(--space-3) var(--space-4);
+  border-top:1px solid var(--line-frame);background:var(--surface-base);
+  font-size:var(--fs-13);color:var(--ink-muted);
+}
+.pager__pages{margin-left:auto;display:flex;align-items:center;gap:2px}
+.pg{
+  min-width:28px;height:28px;padding:0 6px;border-radius:var(--radius-sm);
+  display:grid;place-items:center;font-size:var(--fs-13);color:var(--ink-default);
+  border:1px solid transparent;
+}
+.pg:hover{background:var(--surface-hover)}
+.pg.is-on{background:var(--accent);color:#fff;font-weight:600}
+.pg[disabled]{color:var(--c-gray-300);cursor:default}
+.pager__size{
+  display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 var(--space-2);
+  border:1px solid var(--line-frame);border-radius:var(--radius-md);font-size:var(--fs-13);color:var(--ink-default);
+}
+.pager__jump{display:inline-flex;align-items:center;gap:6px}
+.pager__jump input{
+  width:44px;height:28px;text-align:center;border:1px solid var(--line-frame);
+  border-radius:var(--radius-md);outline:none;font-size:var(--fs-13);
+}
+.pager__jump input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-wash)}
+
+/* ══════════════════════════════════════════════════════════════════════
+   屏 C · 统计看板
+   ══════════════════════════════════════════════════════════════════════ */
+.panehead{padding:var(--space-5) var(--space-4) var(--space-3)}
+.panehead h1{font-size:var(--fs-20);font-weight:600;color:var(--ink-primary);line-height:1.35}
+.panehead p{font-size:var(--fs-13);color:var(--ink-muted);margin-top:2px}
+/* 指标带：竖分隔线分隔，不做四张带左边框的卡片 */
+.metrics{
+  margin:0 var(--space-4);display:grid;grid-template-columns:repeat(4,1fr);
+  border:1px solid var(--line-frame);border-radius:var(--radius-lg);overflow:hidden;
+  background:var(--surface-base);
+}
+.metric{padding:var(--space-4);border-right:1px solid var(--line-soft)}
+.metric:last-child{border-right:none}
+.metric__k{font-size:var(--fs-12);color:var(--ink-muted)}
+.metric__v{font-size:var(--fs-28);font-weight:600;color:var(--ink-primary);line-height:1.2;margin-top:2px}
+.metric__v small{font-size:var(--fs-14);font-weight:500;color:var(--ink-muted);margin-left:2px}
+.metric__d{font-size:var(--fs-12);color:var(--ink-muted);margin-top:2px}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);padding:var(--space-4)}
+.card{border:1px solid var(--line-frame);border-radius:var(--radius-lg);background:var(--surface-base)}
+.card__head{padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--line-soft)}
+.card__head h2{font-size:var(--fs-14);font-weight:600;color:var(--ink-primary)}
+.card__head p{font-size:var(--fs-12);color:var(--ink-muted);margin-top:1px}
+.card__body{padding:var(--space-3) var(--space-4) var(--space-4)}
+/* 横向条形 */
+.barrow{display:grid;grid-template-columns:76px 1fr 44px;align-items:center;gap:var(--space-3);height:30px}
+.barrow__k{font-size:var(--fs-13);color:var(--ink-default);white-space:nowrap}
+.barrow__track{height:8px;border-radius:var(--radius-pill);background:var(--surface-sunken);border:1px solid var(--line-soft);overflow:hidden}
+.barrow__fill{height:100%;background:var(--accent);border-radius:var(--radius-pill)}
+.barrow__v{font-size:var(--fs-13);color:var(--ink-primary);text-align:right;font-weight:500}
+/* 分布 */
+.stack{display:flex;height:26px;border-radius:var(--radius-sm);overflow:hidden;border:1px solid var(--line-soft)}
+.stack span{display:grid;place-items:center;font-size:var(--fs-11);font-weight:600;color:#fff}
+.legend{margin-top:var(--space-3);display:flex;flex-direction:column;gap:6px}
+.legend__row{display:grid;grid-template-columns:10px 1fr auto;align-items:center;gap:var(--space-2);font-size:var(--fs-13)}
+.legend__dot{width:10px;height:10px;border-radius:var(--radius-xs)}
+.legend__v{color:var(--ink-primary);font-weight:500}
+.subhead{font-size:var(--fs-12);color:var(--ink-muted);margin:var(--space-4) 0 var(--space-2);padding-top:var(--space-3);border-top:1px solid var(--line-soft)}
+.subhead:first-child{margin-top:0;padding-top:0;border-top:none}
+
+/* ══════════════════════════════════════════════════════════════════════
+   屏 D · 审核中心
+   ══════════════════════════════════════════════════════════════════════ */
+.auditbar{
+  display:flex;align-items:center;gap:var(--space-3);
+  padding:0 var(--space-4) var(--space-3);
+}
+.auditbar h1{font-size:var(--fs-20);font-weight:600;color:var(--ink-primary)}
+.seg{display:flex;gap:2px;padding:2px;background:var(--surface-sunken);border:1px solid var(--line-soft);border-radius:var(--radius-md)}
+.seg button{
+  height:26px;padding:0 var(--space-3);border-radius:var(--radius-sm);
+  font-size:var(--fs-13);color:var(--ink-default);transition:var(--t-fast);
+}
+.seg button:hover{background:var(--surface-hover)}
+.seg button.is-on{background:var(--surface-base);color:var(--ink-primary);font-weight:600;box-shadow:0 1px 2px rgba(24,29,38,.08)}
+.seg .badge{margin-left:6px}
+
+/* ══════════════════════════════════════════════════════════════════════
+   屏 A · 登录
+   ══════════════════════════════════════════════════════════════════════ */
+.login{
+  height:calc(100vh - 40px - var(--note-h));
+  display:grid;grid-template-columns:1fr 440px;
+  background:var(--surface-canvas);
+}
+.login__aside{
+  padding:var(--space-8) var(--space-8);
+  display:flex;flex-direction:column;justify-content:center;
+  border-right:1px solid var(--line-frame);
+}
+.login__brand{display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-8)}
+.login__mark{
+  width:36px;height:36px;border-radius:var(--radius-md);
+  background:var(--c-ink-900);display:grid;place-items:center;flex:none;
+}
+.login__name{font-size:var(--fs-17);font-weight:600;color:var(--ink-primary);line-height:1.3}
+.login__ver{font-size:var(--fs-12);color:var(--ink-muted);line-height:1.3}
+.spec{display:grid;grid-template-columns:132px 1fr;gap:var(--space-3) var(--space-4);max-width:520px}
+.spec dt{font-size:var(--fs-12);color:var(--ink-muted);padding-top:1px}
+.spec dd{font-size:var(--fs-14);color:var(--ink-default)}
+.spec dd b{color:var(--ink-primary);font-weight:600}
+.typelist{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+.typelist span{
+  font-size:var(--fs-12);color:var(--ink-default);background:var(--surface-base);
+  border:1px solid var(--line-frame);border-radius:var(--radius-sm);padding:2px 8px;
+}
+.login__panel{display:flex;align-items:center;justify-content:center;padding:var(--space-8)}
+.login__card{width:360px}
+.login__card h1{font-size:var(--fs-20);font-weight:600;color:var(--ink-primary);line-height:1.35}
+.login__card .sub{font-size:var(--fs-13);color:var(--ink-muted);margin-top:var(--space-1);margin-bottom:var(--space-6)}
+.lf{margin-bottom:var(--space-4)}
+.lf label{display:block;font-size:var(--fs-12);color:var(--ink-muted);margin-bottom:6px}
+.lf input{
+  width:100%;height:40px;padding:0 var(--space-3);
+  border:1px solid var(--line-frame);border-radius:var(--radius-md);
+  background:var(--surface-base);outline:none;font-size:var(--fs-14);color:var(--ink-primary);
+}
+.lf input::placeholder{color:var(--ink-muted)}
+.lf input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-wash)}
+.btn-primary{
+  width:100%;height:40px;margin-top:var(--space-2);
+  border-radius:var(--radius-md);background:var(--accent);color:#fff;
+  font-size:var(--fs-14);font-weight:600;letter-spacing:.08em;
+  transition:var(--t-fast);
+}
+.btn-primary:hover{background:var(--accent-strong)}
+.login__foot{margin-top:var(--space-4);text-align:center;font-size:var(--fs-12);color:var(--ink-muted)}
+
+/* ══ 底部设计说明 ══ */
+.note{
+  font-size:var(--fs-12);color:var(--ink-muted);line-height:1.7;
+}
+.note b{color:var(--ink-default);font-weight:600}
+/* 底部常驻设计说明条 */
+.notebar{
+  position:fixed;left:0;right:0;bottom:0;height:var(--note-h);z-index:60;
+  display:flex;align-items:center;
+  padding:0 var(--space-4);
+  background:var(--surface-base);border-top:1px solid var(--line-frame);
+  font-size:var(--fs-12);color:var(--ink-muted);line-height:1.6;
+}
+</style>
+</head>
+
+<body>
+
+<!-- ══════════ 演示切换条（非产品界面） ══════════ -->
+<div class="frame">
+  <div class="frame__label">方向 B · <b>现实参照（标杆迁移）：Airtable Grid View</b></div>
+  <nav class="frame__tabs">
+    <button class="frame__tab is-on" data-go="login">登录</button>
+    <button class="frame__tab" data-go="data">数据登记</button>
+    <button class="frame__tab" data-go="stats">统计看板</button>
+    <button class="frame__tab" data-go="audit">审核中心</button>
+  </nav>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     屏 A · 登录
+     ══════════════════════════════════════════════════════════════════ -->
+<section class="login" id="pane-login">
+  <div class="login__aside">
+    <div class="login__brand">
+      <div class="login__mark">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#fff" stroke-width="1.4">
+          <rect x="2.7" y="2.7" width="14.6" height="14.6" rx="2"/>
+          <path d="M2.7 7.6h14.6M2.7 12.4h14.6M7.6 2.7v14.6M12.4 2.7v14.6"/>
+        </svg>
+      </div>
+      <div>
+        <div class="login__name">动态数据登记系统</div>
+        <div class="login__ver">Dynamic Registry · v6.0</div>
+      </div>
+    </div>
+
+    <dl class="spec">
+      <dt>字段类型</dt>
+      <dd>
+        <b>7 种</b>可动态增删
+        <div class="typelist">
+          <span>单行文本</span><span>数字</span><span>日期</span><span>下拉</span>
+          <span>布尔</span><span>长文本</span><span>文件</span>
+        </div>
+      </dd>
+      <dt>权限粒度</dt>
+      <dd><b>21 项</b>细粒度权限，按 Boss / HR / Employee / 自定义角色分级</dd>
+      <dt>审核流</dt>
+      <dd>非 Boss 的写操作进入<b>三级审核</b>，逐级留痕</dd>
+      <dt>数据能力</dt>
+      <dd>ECharts 统计看板、多模型 AI 分析、Excel 导入导出、数据库备份恢复</dd>
+      <dt>当前登记库</dt>
+      <dd>全员花名册 · 1,284 条记录 · 6 个字段 · 状态运行中</dd>
+    </dl>
+  </div>
+
+  <div class="login__panel">
+    <div class="login__card">
+      <h1>动态数据登记系统</h1>
+      <div class="sub">请输入账号密码登录</div>
+
+      <div class="lf">
+        <label for="u">用户名</label>
+        <input id="u" type="text" placeholder="请输入用户名" value="chenjingyi">
+      </div>
+      <div class="lf">
+        <label for="p">密码</label>
+        <input id="p" type="password" placeholder="请输入密码" value="••••••••••">
+      </div>
+
+      <button class="btn-primary">登 录</button>
+      <div class="login__foot">忘记密码请联系管理员</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     外壳（屏 B / C / D 共用）+ 全幅内容区
+     ══════════════════════════════════════════════════════════════════ -->
+<div class="shell" id="shell" hidden>
+
+  <!-- 顶栏 -->
+  <header class="topbar">
+    <button class="iconbtn" title="折叠侧栏">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+        <rect x="2" y="2.5" width="12" height="11" rx="1.6"/><path d="M6.2 2.5v11"/>
+      </svg>
+    </button>
+    <div class="crumb">
+      全员花名册 <span>/</span> <b id="crumb-page">数据管理</b>
+    </div>
+
+    <div class="topbar__search">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <circle cx="7" cy="7" r="4.4"/><path d="M10.4 10.4 14 14"/>
+      </svg>
+      <input placeholder="搜索记录、字段或申请人">
+    </div>
+
+    <button class="iconbtn" title="待审核 12 条" style="position:relative">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+        <path d="M8 2.2a4 4 0 0 1 4 4c0 3.2 1 4.4 1 4.4H3s1-1.2 1-4.4a4 4 0 0 1 4-4Z"/><path d="M6.6 12.9a1.6 1.6 0 0 0 2.8 0"/>
+      </svg>
+      <span style="position:absolute;top:-1px;right:-1px" class="badge">12</span>
+    </button>
+
+    <div class="whoami">
+      <div class="avatar">陈</div>
+      <div>
+        <div class="whoami__n">陈静宜</div>
+        <div class="whoami__r">HR · 管理员</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- 侧栏：Base 切换器 + 分组表/视图列表 -->
+  <aside class="sidebar">
+    <div class="base">
+      <div class="base__sw">
+        <span class="base__chip"></span>
+        <span>
+          <span class="base__name">全员花名册</span><br>
+          <span class="base__meta">登记库 · 6 个字段</span>
+        </span>
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 6.2 8 10.2l4-4"/></svg>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <div class="nav__group">数据</div>
+      <a class="nav__item" href="#" data-page="stats">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.5 13.5h11M4.5 11V7M8 11V3.5M11.5 11V8.5"/></svg>
+        统计看板
+      </a>
+      <a class="nav__item is-on" href="#" data-page="data">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="2.5" width="11" height="11" rx="1.6"/><path d="M2.5 6.2h11M2.5 9.8h11M6.6 2.5v11"/></svg>
+        数据管理
+      </a>
+      <a class="nav__item" href="#" data-page="data">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 4h10M3 8h10M3 12h10"/></svg>
+        数据列表
+      </a>
+
+      <div class="nav__group">治理</div>
+      <a class="nav__item" href="#" data-page="audit">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 2 13.5 4v4.4c0 3-2.3 4.9-5.5 5.6-3.2-.7-5.5-2.6-5.5-5.6V4L8 2Z"/><path d="M5.9 8.1 7.4 9.7l2.9-3"/></svg>
+        审核中心
+        <span class="badge">12</span>
+      </a>
+      <a class="nav__item" href="#">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="5.6" r="2.6"/><path d="M2.8 13.4c0-2.6 2.3-4.2 5.2-4.2s5.2 1.6 5.2 4.2"/></svg>
+        用户管理
+      </a>
+      <a class="nav__item" href="#">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><ellipse cx="8" cy="4" rx="5.2" ry="2"/><path d="M2.8 4v8c0 1.1 2.3 2 5.2 2s5.2-.9 5.2-2V4"/><path d="M2.8 8c0 1.1 2.3 2 5.2 2s5.2-.9 5.2-2"/></svg>
+        备份管理
+      </a>
+
+      <div class="nav__group">系统</div>
+      <a class="nav__item" href="#">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 2.2v11.6M2.2 8h11.6M4.3 4.3l7.4 7.4M11.7 4.3l-7.4 7.4"/></svg>
+        AI 分析
+      </a>
+      <a class="nav__item" href="#">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.7 3.7l1.4 1.4M10.9 10.9l1.4 1.4M12.3 3.7l-1.4 1.4M5.1 10.9l-1.4 1.4"/></svg>
+        系统设置
+      </a>
+      <a class="nav__item" href="#">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M4.2 7.2h7.6M8 4.2v6"/><rect x="2.5" y="2.5" width="11" height="11" rx="1.6"/></svg>
+        隐私政策
+      </a>
+    </nav>
+
+    <div class="nav__foot">
+      <div class="avatar">陈</div>
+      <div>
+        <div class="whoami__n">陈静宜</div>
+        <div class="whoami__r">HR · 管理员</div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="content">
+
+    <!-- ══════════════════════════════════════════════════════════════
+         屏 B · 数据登记（核心屏）
+         ══════════════════════════════════════════════════════════════ -->
+    <section class="pane is-on" id="pane-data">
+
+      <!-- 登记条：标题 + 视图 + 内联统计 meta + 工具（统计条与工具栏合流） -->
+      <div class="viewbar">
+        <span class="viewbar__title">数据管理</span>
+        <span class="viewbar__view">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="2.5" width="11" height="11" rx="1.6"/><path d="M2.5 6.2h11M2.5 9.8h11M6.6 2.5v11"/></svg>
+          网格视图
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6.2 8 10.2l4-4"/></svg>
+        </span>
+        <span class="viewbar__meta">
+          总记录数 <b class="tnum">1,284</b> · 总列数 <b class="tnum">6</b> · 数据状态 <span class="dot"></span><b>运行中</b>
+        </span>
+
+        <div class="viewbar__tools">
+          <div class="field">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.4"/><path d="M10.4 10.4 14 14"/></svg>
+            <input placeholder="搜索姓名 / 工号 / 部门">
+          </div>
+          <button class="tool tool--icon" title="刷新">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M13.4 8a5.4 5.4 0 1 1-1.7-3.9"/><path d="M13.6 2.4v3.2h-3.2"/></svg>
+          </button>
+          <button class="tool">导入</button>
+          <button class="tool">导出</button>
+          <button class="tool">总览</button>
+
+          <!-- 危险操作沉入「更多」：只用红色文字，不与导入导出同权重 -->
+          <div class="menuwrap">
+            <button class="tool tool--icon is-open" title="更多操作">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><circle cx="3.4" cy="8" r="1.3"/><circle cx="8" cy="8" r="1.3"/><circle cx="12.6" cy="8" r="1.3"/></svg>
+            </button>
+            <div class="menu">
+              <div class="menu__head">更多操作</div>
+              <button class="menu__item">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.5 4h11M2.5 8h11M2.5 12h7"/></svg>
+                字段配置
+              </button>
+              <button class="menu__item">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6.6 2.5v11M10.6 4.6 12.4 6.4M10.6 11.4l1.8 1.8"/></svg>
+                行高：紧凑
+              </button>
+              <div class="menu__sep"></div>
+              <button class="menu__item is-danger">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 4.6h10M6.4 4.6V3.2h3.2v1.4M4.6 4.6l.6 8.2h5.6l.6-8.2"/></svg>
+                清空数据
+                <span class="menu__note">需二次确认</span>
+              </button>
+              <button class="menu__item is-danger">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M13.4 8a5.4 5.4 0 1 1-1.7-3.9"/><path d="M13.6 2.4v3.2h-3.2"/></svg>
+                重置字段结构
+                <span class="menu__note">需二次确认</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 只读角色提示：28px 细条 -->
+      <div class="robar">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3.4" y="7" width="9.2" height="6.6" rx="1.4"/><path d="M5.8 7V5.4a2.2 2.2 0 0 1 4.4 0V7"/></svg>
+        当前角色 HR 对「工号 / 入职日期」2 个字段为只读（字段级权限）：修改需提交审核，由 Boss 复核后生效
+      </div>
+
+      <!-- Excel 拖拽区：压缩为 34px 细条 -->
+      <div class="dropbar">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 11V2.8M5.2 5.6 8 2.8l2.8 2.8"/><path d="M2.6 10.4v2.2c0 .8.7 1.4 1.4 1.4h8c.8 0 1.4-.6 1.4-1.4v-2.2"/></svg>
+        <span>将 <b>Excel</b> 拖到此处，或</span>
+        <a class="dropbar__link" href="#">选择文件</a>
+        <span class="hint">支持 .xlsx / .csv，单次最多 5,000 行，首行作为列名</span>
+      </div>
+
+      <!-- 网格 -->
+      <div class="gridwrap">
+        <table class="grid">
+          <colgroup>
+            <col style="width:52px"><col style="width:150px"><col style="width:120px">
+            <col style="width:164px"><col style="width:132px"><col style="width:120px">
+            <col><col style="width:80px">
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="gutter"></th>
+              <th class="frozen"><div class="colname">姓名</div><div class="coltype">单行文本</div></th>
+              <th><div class="colname">工号</div><div class="coltype">单行文本</div></th>
+              <th><div class="colname">部门</div><div class="coltype">下拉</div></th>
+              <th><div class="colname">入职日期</div><div class="coltype">日期</div></th>
+              <th><div class="colname">在职状态</div><div class="coltype">下拉</div></th>
+              <th><div class="colname">备注</div><div class="coltype">长文本</div></th>
+              <th style="text-align:right"><div class="colname">操作</div><div class="coltype">&nbsp;</div></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr data-st="on">
+              <td class="gutter"><span class="rowbar"></span>1</td>
+              <td class="frozen">陈静宜</td>
+              <td class="tnum">EMP-1042</td>
+              <td>人力资源部</td>
+              <td class="tnum">2024-03-18</td>
+              <td><span class="pill pill--on">在职</span></td>
+              <td class="cell">2026 年度调薪已完成
+                <svg class="pen" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M11.2 2.6 13.4 4.8 6 12.2 3 13l.8-3L11.2 2.6Z"/></svg>
+              </td>
+              <td class="ops"><a class="link link--danger" href="#">删除</a></td>
+            </tr>
+            <tr data-st="on">
+              <td class="gutter"><span class="rowbar"></span>2</td>
+              <td class="frozen">林致远</td>
+              <td class="tnum">EMP-1043</td>
+              <td>技术研发部</td>
+              <td class="tnum">2024-07-02</td>
+              <td><span class="pill pill--on">在职</span></td>
+              <td class="cell">持有高级工程师职称
+                <svg class="pen" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M11.2 2.6 13.4 4.8 6 12.2 3 13l.8-3L11.2 2.6Z"/></svg>
+              </td>
+              <td class="ops"><a class="link link--danger" href="#">删除</a></td>
+            </tr>
+            <tr data-st="try">
+              <td class="gutter"><span class="rowbar"></span>3</td>
+              <td class="frozen">苏婉清</td>
+              <td class="tnum">EMP-1044</td>
+              <td>市场运营部</td>
+              <td class="tnum">2025-01-15</td>
+              <td><span class="pill pill--try">试用</span></td>
+              <td class="cell"><span class="nil">—</span>
+                <svg class="pen" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M11.2 2.6 13.4 4.8 6 12.2 3 13l.8-3L11.2 2.6Z"/></svg>
+              </td>
+              <td class="ops"><a class="link link--danger" href="#">删除</a></td>
+            </tr>
+            <tr data-st="off">
+              <td class="gutter"><span class="rowbar"></span>4</td>
+              <td class="frozen">郭子昂</td>
+              <td class="tnum">EMP-1045</td>
+              <td>财务审计部</td>
+              <td class="tnum">2023-11-06</td>
+              <td><span class="pill pill--off">离职</span></td>
+              <td class="cell is-editing">
+                <span class="editor"><input value="合同到期未续签"></span>
+              </td>
+              <td class="ops"><a class="link link--danger" href="#">删除</a></td>
+            </tr>
+            <tr data-st="on">
+              <td class="gutter"><span class="rowbar"></span>5</td>
+              <td class="frozen">何雨桐</td>
+              <td class="tnum">EMP-1046</td>
+              <td>技术研发部</td>
+              <td class="tnum">2025-04-22</td>
+              <td><span class="pill pill--on">在职</span></td>
+              <td class="cell">参与 AI 分析模块开发
+                <svg class="pen" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M11.2 2.6 13.4 4.8 6 12.2 3 13l.8-3L11.2 2.6Z"/></svg>
+              </td>
+              <td class="ops"><a class="link link--danger" href="#">删除</a></td>
+            </tr>
+            <tr data-st="on">
+              <td class="gutter"><span class="rowbar"></span>6</td>
+              <td class="frozen">罗嘉宁</td>
+              <td class="tnum">EMP-1047</td>
+              <td>供应链管理部</td>
+              <td class="tnum">2024-09-30</td>
+              <td><span class="pill pill--on">在职</span></td>
+              <td class="cell"><span class="nil">—</span>
+                <svg class="pen" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M11.2 2.6 13.4 4.8 6 12.2 3 13l.8-3L11.2 2.6Z"/></svg>
+              </td>
+              <td class="ops"><a class="link link--danger" href="#">删除</a></td>
+            </tr>
+
+            <!-- 新增行 -->
+            <tr class="addrow">
+              <td class="gutter">+</td>
+              <td colspan="7">
+                <button class="addrow__btn">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 3.4v9.2M3.4 8h9.2"/></svg>
+                  点击新增一行数据
+                </button>
+              </td>
+            </tr>
+
+            <!-- 汇总栏：每列自己的聚合口径 -->
+            <tr class="summary">
+              <td class="gutter">汇总</td>
+              <td class="frozen">已填 <b class="tnum">6</b></td>
+              <td>已填 <b class="tnum">6</b></td>
+              <td>去重 <b class="tnum">6</b></td>
+              <td>最早 <b class="tnum">2023-11-06</b></td>
+              <td>在职 <b class="tnum">4</b> · 试用 <b class="tnum">1</b></td>
+              <td>空值 <b class="tnum">2</b></td>
+              <td style="text-align:right">共 <b class="tnum">6</b></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 编辑方式常驻说明（不藏 tooltip） -->
+      <div class="gridhint">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M11.2 2.6 13.4 4.8 6 12.2 3 13l.8-3L11.2 2.6Z"/></svg>
+        双击单元格进入编辑 · <kbd>Enter</kbd> 保存 · <kbd>Esc</kbd> 取消 · <kbd>Tab</kbd> 移到下一格
+      </div>
+
+      <!-- 分页器 -->
+      <div class="pager">
+        <span>共 <b class="tnum" style="color:var(--ink-primary)">1,284</b> 条 · 当前 1–6</span>
+        <span class="pager__size">
+          每页 10
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6.2 8 10.2l4-4"/></svg>
+        </span>
+        <div class="pager__pages">
+          <button class="pg" disabled>‹</button>
+          <button class="pg is-on">1</button>
+          <button class="pg">2</button>
+          <button class="pg">3</button>
+          <button class="pg">…</button>
+          <button class="pg">129</button>
+          <button class="pg">›</button>
+        </div>
+        <span class="pager__jump">前往 <input value="1"> 页</span>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         屏 C · 统计看板
+         ══════════════════════════════════════════════════════════════ -->
+    <section class="pane" id="pane-stats">
+      <div class="panehead">
+        <h1>数据总览</h1>
+        <p>数据概况与完整性分析 · 统计口径：全员花名册全部 1,284 条记录</p>
+      </div>
+
+      <!-- 指标带：竖分隔线，不做带左边框的卡片 -->
+      <div class="metrics">
+        <div class="metric">
+          <div class="metric__k">总记录数</div>
+          <div class="metric__v tnum">1,284</div>
+          <div class="metric__d">含全部历史与在职记录</div>
+        </div>
+        <div class="metric">
+          <div class="metric__k">字段数量</div>
+          <div class="metric__v tnum">6</div>
+          <div class="metric__d">可继续增删字段</div>
+        </div>
+        <div class="metric">
+          <div class="metric__k">数据完整度</div>
+          <div class="metric__v tnum">87<small>%</small></div>
+          <div class="metric__d">非空单元格占比</div>
+        </div>
+        <div class="metric">
+          <div class="metric__k">空值字段</div>
+          <div class="metric__v tnum">143</div>
+          <div class="metric__d">待补充的字段项</div>
+        </div>
+      </div>
+
+      <div class="cards">
+        <!-- 列填充率 -->
+        <div class="card">
+          <div class="card__head">
+            <h2>列填充率</h2>
+            <p>各字段非空记录占比（基数 1,284 条）</p>
+          </div>
+          <div class="card__body">
+            <div class="barrow"><span class="barrow__k">姓名</span><span class="barrow__track"><span class="barrow__fill" style="width:100%"></span></span><span class="barrow__v tnum">100%</span></div>
+            <div class="barrow"><span class="barrow__k">工号</span><span class="barrow__track"><span class="barrow__fill" style="width:100%"></span></span><span class="barrow__v tnum">100%</span></div>
+            <div class="barrow"><span class="barrow__k">部门</span><span class="barrow__track"><span class="barrow__fill" style="width:98%"></span></span><span class="barrow__v tnum">98%</span></div>
+            <div class="barrow"><span class="barrow__k">入职日期</span><span class="barrow__track"><span class="barrow__fill" style="width:94%"></span></span><span class="barrow__v tnum">94%</span></div>
+            <div class="barrow"><span class="barrow__k">在职状态</span><span class="barrow__track"><span class="barrow__fill" style="width:89%"></span></span><span class="barrow__v tnum">89%</span></div>
+            <div class="barrow"><span class="barrow__k">备注</span><span class="barrow__track"><span class="barrow__fill" style="width:41%"></span></span><span class="barrow__v tnum">41%</span></div>
+          </div>
+        </div>
+
+        <!-- 分类分布 -->
+        <div class="card">
+          <div class="card__head">
+            <h2>分类分布</h2>
+            <p>下拉字段选项分布 · 当前视图 6 条记录</p>
+          </div>
+          <div class="card__body">
+            <div class="subhead">在职状态</div>
+            <div class="stack">
+              <span style="width:66.7%;background:var(--status-on-bar)">在职 4</span>
+              <span style="width:16.65%;background:var(--status-try-bar)">试用 1</span>
+              <span style="width:16.65%;background:var(--status-off-bar);color:var(--status-off-fg)">离职 1</span>
+            </div>
+            <div class="legend">
+              <div class="legend__row"><span class="legend__dot" style="background:var(--status-on-bar)"></span>在职<span class="legend__v tnum">4</span></div>
+              <div class="legend__row"><span class="legend__dot" style="background:var(--status-try-bar)"></span>试用<span class="legend__v tnum">1</span></div>
+              <div class="legend__row"><span class="legend__dot" style="background:var(--status-off-bar)"></span>离职<span class="legend__v tnum">1</span></div>
+            </div>
+
+            <div class="subhead">部门</div>
+            <div class="barrow"><span class="barrow__k">技术研发部</span><span class="barrow__track"><span class="barrow__fill" style="width:100%"></span></span><span class="barrow__v tnum">2</span></div>
+            <div class="barrow"><span class="barrow__k">人力资源部</span><span class="barrow__track"><span class="barrow__fill" style="width:50%"></span></span><span class="barrow__v tnum">1</span></div>
+            <div class="barrow"><span class="barrow__k">市场运营部</span><span class="barrow__track"><span class="barrow__fill" style="width:50%"></span></span><span class="barrow__v tnum">1</span></div>
+            <div class="barrow"><span class="barrow__k">财务审计部</span><span class="barrow__track"><span class="barrow__fill" style="width:50%"></span></span><span class="barrow__v tnum">1</span></div>
+            <div class="barrow"><span class="barrow__k">供应链管理部</span><span class="barrow__track"><span class="barrow__fill" style="width:50%"></span></span><span class="barrow__v tnum">1</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="note">
+        <b>指标说明</b>：完整度 87% 与空值字段 143 为全库口径；列填充率按各字段独立统计；分类分布与部门分布仅统计当前视图内的 6 条记录。
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         屏 D · 审核中心
+         ══════════════════════════════════════════════════════════════ -->
+    <section class="pane" id="pane-audit">
+      <div class="panehead" style="padding-bottom:0">
+        <h1>审核中心</h1>
+        <p>非 Boss 角色的写操作在此复核 · 待审核 12 条</p>
+      </div>
+
+      <div class="auditbar">
+        <div class="field" style="width:260px">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.4"/><path d="M10.4 10.4 14 14"/></svg>
+          <input placeholder="搜索申请人 / 详情">
+        </div>
+        <div class="seg">
+          <button>全部</button>
+          <button class="is-on">待审核 <span class="badge">12</span></button>
+          <button>已通过</button>
+          <button>已驳回</button>
+        </div>
+        <button class="tool tool--icon" style="margin-left:auto" title="刷新">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M13.4 8a5.4 5.4 0 1 1-1.7-3.9"/><path d="M13.6 2.4v3.2h-3.2"/></svg>
+        </button>
+      </div>
+
+      <div class="gridwrap" style="margin-top:0">
+        <table class="grid">
+          <colgroup>
+            <col style="width:52px"><col style="width:118px"><col style="width:88px">
+            <col style="width:96px"><col><col style="width:92px"><col style="width:88px">
+            <col style="width:104px"><col style="width:110px"><col style="width:104px">
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="gutter"></th>
+              <th><div class="colname">类型</div><div class="coltype">下拉</div></th>
+              <th><div class="colname">申请人</div><div class="coltype">单行文本</div></th>
+              <th><div class="colname">申请角色</div><div class="coltype">下拉</div></th>
+              <th><div class="colname">详情</div><div class="coltype">长文本</div></th>
+              <th><div class="colname">状态</div><div class="coltype">下拉</div></th>
+              <th><div class="colname">审核人</div><div class="coltype">单行文本</div></th>
+              <th><div class="colname">审核意见</div><div class="coltype">长文本</div></th>
+              <th><div class="colname">提交时间</div><div class="coltype">日期</div></th>
+              <th style="text-align:right"><div class="colname">操作</div><div class="coltype">&nbsp;</div></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr data-st="try">
+              <td class="gutter"><span class="rowbar"></span>1</td>
+              <td><span class="pill pill--flat">新增数据</span></td>
+              <td class="frozen">陈静宜</td>
+              <td>HR</td>
+              <td class="cell">新增记录 EMP-1042 · 人力资源部 · 入职 2024-03-18
+                <svg class="pen" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M11.2 2.6 13.4 4.8 6 12.2 3 13l.8-3L11.2 2.6Z"/></svg>
+              </td>
+              <td><span class="pill pill--wait">待审核</span></td>
+              <td><span class="nil">未指派</span></td>
+              <td><span class="nil">待填写</span></td>
+              <td class="tnum">12 分钟前</td>
+              <td class="ops"><a class="link" href="#">通过</a> · <a class="link link--danger" href="#">驳回</a></td>
+            </tr>
+            <tr data-st="try">
+              <td class="gutter"><span class="rowbar"></span>2</td>
+              <td><span class="pill pill--flat">修改字段配置</span></td>
+              <td class="frozen">林致远</td>
+              <td>HR</td>
+              <td class="cell">将「在职状态」选项由 3 项调整为 4 项，新增「停薪留职」
+                <svg class="pen" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M11.2 2.6 13.4 4.8 6 12.2 3 13l.8-3L11.2 2.6Z"/></svg>
+              </td>
+              <td><span class="pill pill--wait">待审核</span></td>
+              <td><span class="nil">未指派</span></td>
+              <td><span class="nil">待填写</span></td>
+              <td class="tnum">48 分钟前</td>
+              <td class="ops"><a class="link" href="#">通过</a> · <a class="link link--danger" href="#">驳回</a></td>
+            </tr>
+            <tr data-st="try">
+              <td class="gutter"><span class="rowbar"></span>3</td>
+              <td><span class="pill pill--flat">删除数据</span></td>
+              <td class="frozen">苏婉清</td>
+              <td>Employee</td>
+              <td class="cell">删除记录 EMP-1044 · 市场运营部 · 试用未转正
+                <svg class="pen" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M11.2 2.6 13.4 4.8 6 12.2 3 13l.8-3L11.2 2.6Z"/></svg>
+              </td>
+              <td><span class="pill pill--wait">待审核</span></td>
+              <td><span class="nil">未指派</span></td>
+              <td><span class="nil">待填写</span></td>
+              <td class="tnum">3 小时前</td>
+              <td class="ops"><a class="link" href="#">通过</a> · <a class="link link--danger" href="#">驳回</a></td>
+            </tr>
+            <tr data-st="try">
+              <td class="gutter"><span class="rowbar"></span>4</td>
+              <td><span class="pill pill--flat">添加用户</span></td>
+              <td class="frozen">郭子昂</td>
+              <td>HR</td>
+              <td class="cell">新增用户账号 guoza@corp.cn，授予 Employee 只读角色
+                <svg class="pen" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M11.2 2.6 13.4 4.8 6 12.2 3 13l.8-3L11.2 2.6Z"/></svg>
+              </td>
+              <td><span class="pill pill--wait">待审核</span></td>
+              <td><span class="nil">未指派</span></td>
+              <td><span class="nil">待填写</span></td>
+              <td class="tnum">昨天 18:05</td>
+              <td class="ops"><a class="link" href="#">通过</a> · <a class="link link--danger" href="#">驳回</a></td>
+            </tr>
+            <tr data-st="try">
+              <td class="gutter"><span class="rowbar"></span>5</td>
+              <td><span class="pill pill--flat">清空日志</span></td>
+              <td class="frozen">何雨桐</td>
+              <td>HR</td>
+              <td class="cell">清空 2025-12 之前的全部操作日志，共 3,417 条
+                <svg class="pen" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M11.2 2.6 13.4 4.8 6 12.2 3 13l.8-3L11.2 2.6Z"/></svg>
+              </td>
+              <td><span class="pill pill--wait">待审核</span></td>
+              <td><span class="nil">未指派</span></td>
+              <td><span class="nil">待填写</span></td>
+              <td class="tnum">10-03 09:31</td>
+              <td class="ops"><a class="link" href="#">通过</a> · <a class="link link--danger" href="#">驳回</a></td>
+            </tr>
+
+            <tr class="summary">
+              <td class="gutter">汇总</td>
+              <td colspan="3">待审核 <b class="tnum">5</b> 条（当前筛选）</td>
+              <td>全库待审核 <b class="tnum">12</b></td>
+              <td>待审核 <b class="tnum">5</b></td>
+              <td>未指派 <b class="tnum">5</b></td>
+              <td colspan="2">最早提交 <b class="tnum">10-03 09:31</b></td>
+              <td style="text-align:right">共 <b class="tnum">5</b></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="gridhint">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 2 13.5 4v4.4c0 3-2.3 4.9-5.5 5.6-3.2-.7-5.5-2.6-5.5-5.6V4L8 2Z"/></svg>
+        「清空日志」类申请需二级复核，通过后操作不可撤销
+      </div>
+
+      <div class="pager">
+        <span>共 <b class="tnum" style="color:var(--ink-primary)">12</b> 条 · 当前 1–5</span>
+        <span class="pager__size">每页 10
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6.2 8 10.2l4-4"/></svg>
+        </span>
+        <div class="pager__pages">
+          <button class="pg" disabled>‹</button>
+          <button class="pg is-on">1</button>
+          <button class="pg">2</button>
+          <button class="pg">›</button>
+        </div>
+        <span class="pager__jump">前往 <input value="1"> 页</span>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<script>
+(function () {
+  var login = document.getElementById('pane-login');
+  var shell = document.getElementById('shell');
+  var panes = {
+    data:  document.getElementById('pane-data'),
+    stats: document.getElementById('pane-stats'),
+    audit: document.getElementById('pane-audit')
+  };
+  var crumb = document.getElementById('crumb-page');
+  var titles = { data: '数据管理', stats: '统计看板', audit: '审核中心' };
+  var navItems = document.querySelectorAll('.nav__item[data-page]');
+
+  function show(key) {
+    var isLogin = key === 'login';
+    login.hidden = !isLogin;
+    login.style.display = isLogin ? 'grid' : 'none';
+    shell.hidden = isLogin;
+
+    if (!isLogin) {
+      Object.keys(panes).forEach(function (k) {
+        panes[k].classList.toggle('is-on', k === key);
+      });
+      crumb.textContent = titles[key];
+      navItems.forEach(function (n) {
+        n.classList.toggle('is-on', n.dataset.page === key);
+      });
+    }
+    document.querySelectorAll('.frame__tab').forEach(function (t) {
+      t.classList.toggle('is-on', t.dataset.go === key);
+    });
+  }
+
+  document.querySelectorAll('.frame__tab').forEach(function (t) {
+    t.addEventListener('click', function () { show(t.dataset.go); });
+  });
+  navItems.forEach(function (n) {
+    n.addEventListener('click', function (e) {
+      e.preventDefault();
+      show(n.dataset.page);
+    });
+  });
+
+  var initial = (location.hash || '').replace('#', '');
+  show(panes[initial] ? initial : 'login');
+})();
+</script>
+
+<!-- ══════════ 用户可见设计说明（≤100 字） ══════════ -->
+<div class="notebar">
+  参照 Airtable 网格视图：白色网格画布、竖列线让列成为结构、单元格即编辑点。统计与工具合并为一条登记条，危险操作沉入「更多」菜单并降为红色文字；表格全幅贴边，滚动时列头吸顶。
+</div>
+
+</body>
+</html>

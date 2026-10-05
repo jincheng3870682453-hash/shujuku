@@ -285,7 +285,7 @@ const AIAnalysis: React.FC = () => {
               whiteSpace: "pre-wrap",
               wordBreak: "break-all",
               fontSize: 12,
-              background: "#f5f5f5",
+              background: "var(--surface-sunken)",
               padding: 12,
               borderRadius: 4,
               marginTop: 8,
@@ -525,7 +525,7 @@ const AIAnalysis: React.FC = () => {
       {/* 页面标题 */}
       <div style={{ marginBottom: 20 }}>
         <Title level={3} style={{ margin: 0 }}>
-          <RobotOutlined style={{ marginRight: 8, color: "var(--accent-default, #1677ff)" }} />
+          <RobotOutlined style={{ marginRight: 8, color: "var(--accent)" }} />
           AI 数据分析
         </Title>
         <Text type="secondary">基于大语言模型自动分析数据库内容，生成报告并支持对话追问</Text>
@@ -592,7 +592,7 @@ const AIAnalysis: React.FC = () => {
                     <Text strong style={{ display: "block", marginBottom: 4 }}>
                       模型
                       <Tooltip title="可从下拉列表选择，也可直接输入自定义模型名">
-                        <QuestionCircleOutlined style={{ marginLeft: 4, fontSize: 12, color: "#999" }} />
+                        <QuestionCircleOutlined style={{ marginLeft: 4, fontSize: 12, color: "var(--ink-muted)" }} />
                       </Tooltip>
                     </Text>
                     <Select
@@ -838,7 +838,7 @@ const AIAnalysis: React.FC = () => {
       {!loading && !report && (
         <Card>
           <Empty
-            image={<RobotOutlined style={{ fontSize: 64, color: "#d9d9d9" }} />}
+            image={<RobotOutlined style={{ fontSize: 64, color: "var(--ink-muted)" }} />}
             description={
               <span>
                 点击「一键分析」让 AI 帮你分析数据库中的数据
@@ -856,7 +856,7 @@ const AIAnalysis: React.FC = () => {
           <Card
             title={
               <Space>
-                <RobotOutlined style={{ color: "var(--accent-default, #1677ff)" }} />
+                <RobotOutlined style={{ color: "var(--accent)" }} />
                 <span>AI 分析报告</span>
               </Space>
             }
@@ -946,10 +946,10 @@ const AIAnalysis: React.FC = () => {
                       padding: "8px 12px",
                       borderRadius: 8,
                       backgroundColor:
-                        msg.role === "user" ? "var(--surface-card, #f5f5f5)" : "transparent",
+                        msg.role === "user" ? "var(--surface-sunken)" : "transparent",
                       border:
                         msg.role === "assistant"
-                          ? "1px solid var(--border-color, #e8e8e8)"
+                          ? "1px solid var(--line-soft)"
                           : "none",
                     }}
                   >
@@ -960,8 +960,8 @@ const AIAnalysis: React.FC = () => {
                         marginBottom: 4,
                         color:
                           msg.role === "user"
-                            ? "var(--accent-default, #1677ff)"
-                            : "var(--text-primary, #333)",
+                            ? "var(--accent)"
+                            : "var(--ink-primary)",
                       }}
                     >
                       {msg.role === "user" ? "🙋 你" : "🤖 AI"}
@@ -990,8 +990,8 @@ const AIAnalysis: React.FC = () => {
                 disabled={chatting}
                 style={{
                   height: "auto",
-                  background: isListening ? "var(--danger, #ff4d4f)" : undefined,
-                  borderColor: isListening ? "var(--danger, #ff4d4f)" : undefined,
+                  background: isListening ? "var(--danger)" : undefined,
+                  borderColor: isListening ? "var(--danger)" : undefined,
                 }}
                 title={
                   isListening
@@ -1027,16 +1027,16 @@ const AIAnalysis: React.FC = () => {
       )}
 
       <style>{`
-        .ai-report-content h1 { font-size: 1.6em; border-bottom: 2px solid var(--accent-default, #1677ff); padding-bottom: 8px; }
-        .ai-report-content h2 { font-size: 1.3em; margin-top: 24px; }
-        .ai-report-content h3 { font-size: 1.1em; margin-top: 16px; }
-        .ai-report-content table { border-collapse: collapse; width: 100%; margin: 12px 0; }
-        .ai-report-content th, .ai-report-content td { border: 1px solid #e8e8e8; padding: 8px 12px; text-align: left; }
-        .ai-report-content th { background: #fafafa; font-weight: 600; }
-        .ai-report-content blockquote { border-left: 3px solid var(--accent-default, #1677ff); padding-left: 12px; color: #666; margin: 12px 0; }
-        .ai-report-content ul, .ai-report-content ol { padding-left: 20px; }
-        .ai-report-content code { background: #f5f5f5; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
-        .ai-report-content pre { background: #f8f8f8; border-radius: 8px; padding: 12px; overflow-x: auto; }
+        .ai-report-content h1 { font-size: 1.6em; border-bottom: 2px solid var(--accent); padding-bottom: var(--space-2); }
+        .ai-report-content h2 { font-size: 1.3em; margin-top: var(--space-6); }
+        .ai-report-content h3 { font-size: 1.1em; margin-top: var(--space-4); }
+        .ai-report-content table { border-collapse: collapse; width: 100%; margin: var(--space-3) 0; }
+        .ai-report-content th, .ai-report-content td { border: 1px solid var(--line-row); padding: var(--space-2) var(--space-3); text-align: left; }
+        .ai-report-content th { background: var(--surface-sunken); font-weight: 600; }
+        .ai-report-content blockquote { border-left: 3px solid var(--accent); padding-left: var(--space-3); color: var(--ink-muted); margin: var(--space-3) 0; }
+        .ai-report-content ul, .ai-report-content ol { padding-left: var(--space-5); }
+        .ai-report-content code { background: var(--surface-sunken); padding: 2px 6px; border-radius: var(--radius-sm); font-size: 0.9em; }
+        .ai-report-content pre { background: var(--surface-sunken); border-radius: var(--radius-lg); padding: var(--space-3); overflow-x: auto; }
       `}</style>
     </div>
   );

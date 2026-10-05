@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
-  Card,
   Table,
   Button,
   Input,
@@ -12,6 +11,7 @@ import {
   Empty,
   Popconfirm,
   Modal,
+  Segmented,
 } from 'antd';
 import {
   CheckOutlined,
@@ -25,8 +25,9 @@ import { auditApi } from '../api/audit';
 import { useRole } from '../hooks/useRole';
 import client from '../api/client';
 import type { AuditItem, AuditStatus, AuditType } from '../types/data';
+import { statusPillClass, statusToneMap } from '../styles/pageStyles';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const auditTypeLabels: Record<AuditType, string> = {
   create: '新增',
@@ -76,12 +77,6 @@ const statusLabels: Record<AuditStatus, string> = {
   rejected: '已驳回',
 };
 
-const statusColors: Record<AuditStatus, string> = {
-  pending: 'orange',
-  approved: 'green',
-  rejected: 'red',
-};
-
 /**
  * 后端返回的 status 是中文（'待审核'/'已通过'/'已驳回'），
  * 需要映射为英文 key（pending/approved/rejected）与前端状态常量对齐。
@@ -125,6 +120,16 @@ function normalizeAuditItem(item: AuditItem): AuditItem {
   return normalized;
 }
 
+/** 审核状态 → 状态 pill（彩色只服务「状态」这一个扫读维度） */
+function StatusPill({ status }: { status: string }) {
+  const label = statusLabels[status as AuditStatus] ?? status;
+  const tone = statusToneMap[label] ?? 'off';
+  return <span className={statusPillClass[tone]}>{label}</span>;
+}
+
+/** 状态筛选：undefined 代表「全部」 */
+const STATUS_ALL = 'all';
+
 function Audit() {
   const queryClient = useQueryClient();
   const [messageApi, contextHolder] = message.useMessage();
@@ -136,11 +141,9 @@ function Audit() {
     const fetchRole = async () => {
       try {
         const me = await client.get('/me') as { role?: string; permissions?: string[] };
-        console.log('[Audit] /api/me 返回:', me);
         // 只有 boss 角色才能看到操作按钮（通过/驳回）
         setCanApprove(me?.role === 'boss');
-      } catch (e) {
-        console.error('[Audit] /api/me 调用失败:', e);
+      } catch {
         // 兜底：使用 localStorage 中角色判断
         try {
           const stored = JSON.parse(localStorage.getItem('user') || '{}');
@@ -156,6 +159,8 @@ function Audit() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [statusFilter, setStatusFilter] = useState<string | undefined>('pending');
+  // 搜索框：接上真实筛选（对当前页数据按申请人过滤），不再是装饰性死控件
+  const [applicantKeyword, setApplicantKeyword] = useState('');
 
   // 查询审核列表
   const { data: rawData, isLoading } = useQuery({
@@ -172,19 +177,22 @@ function Audit() {
       }
     : rawData;
 
+  // 申请人筛选（前端过滤当前页，与状态筛选联动）
+  const keyword = applicantKeyword.trim().toLowerCase();
+  const filteredRows = useMemo(() => {
+    const rows = data?.data ?? [];
+    if (!keyword) return rows;
+    return rows.filter((item) => (item.applicant ?? '').toLowerCase().includes(keyword));
+  }, [data, keyword]);
+
   // 通过
   const approveMutation = useMutation({
-    mutationFn: (id: number) => {
-      console.log('[Audit] 调用 approve, id=', id);
-      return auditApi.approve(id);
-    },
-    onSuccess: (res) => {
-      console.log('[Audit] approve 成功:', res);
+    mutationFn: (id: number) => auditApi.approve(id),
+    onSuccess: () => {
       messageApi.success('审核通过');
       queryClient.invalidateQueries({ queryKey: ['audit'] });
     },
-    onError: (err) => {
-      console.error('[Audit] approve 失败:', err);
+    onError: () => {
       messageApi.error('操作失败，请查看控制台日志');
     },
   });
@@ -195,20 +203,15 @@ function Audit() {
   const [rejectComment, setRejectComment] = useState('');
 
   const rejectMutation = useMutation({
-    mutationFn: ({ id, comment }: { id: number; comment: string }) => {
-      console.log('[Audit] 调用 reject, id=', id, 'comment=', comment);
-      return auditApi.reject(id, comment);
-    },
-    onSuccess: (res) => {
-      console.log('[Audit] reject 成功:', res);
+    mutationFn: ({ id, comment }: { id: number; comment: string }) => auditApi.reject(id, comment),
+    onSuccess: () => {
       messageApi.success('已驳回');
       setRejectModalVisible(false);
       setRejectTargetId(null);
       setRejectComment('');
       queryClient.invalidateQueries({ queryKey: ['audit'] });
     },
-    onError: (err) => {
-      console.error('[Audit] reject 失败:', err);
+    onError: () => {
       messageApi.error('操作失败，请查看控制台日志');
     },
   });
@@ -271,12 +274,7 @@ function Audit() {
       dataIndex: 'status',
       key: 'status',
       width: 100,
-      render: (s: string) => {
-        const typed = s as AuditStatus;
-        const color = statusColors[typed] ?? 'default';
-        const label = statusLabels[typed] ?? s;
-        return <Tag color={color}>{label}</Tag>;
-      },
+      render: (s: string) => <StatusPill status={s} />,
     },
     {
       title: '审核人',
@@ -317,22 +315,21 @@ function Audit() {
                     title="确认通过此申请？"
                     okText="确认通过"
                     cancelText="取消"
-                    onConfirm={() => {
-                      console.log('[Audit] Popconfirm onConfirm, id=', record.id);
-                      approveMutation.mutate(record.id);
-                    }}
+                    onConfirm={() => approveMutation.mutate(record.id)}
                   >
                     <Button
-                      type="primary"
                       size="small"
                       icon={<CheckOutlined />}
-                      style={{ backgroundColor: 'var(--success)', borderColor: 'var(--success)' }}
+                      style={{
+                        color: 'var(--ink-inverse)',
+                        backgroundColor: 'var(--success)',
+                        borderColor: 'var(--success)',
+                      }}
                     >
                       通过
                     </Button>
                   </Popconfirm>
                   <Button
-                    type="primary"
                     size="small"
                     danger
                     icon={<CloseOutlined />}
@@ -351,25 +348,19 @@ function Audit() {
   return (
     <>
       {contextHolder}
-      <Card className="glass-card">
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: 16,
-            flexWrap: 'wrap',
-            gap: 12,
-          }}
-        >
-          <Title level={4} style={{ margin: 0 }}>
-            审核中心
-          </Title>
-          <Space wrap>
+      <div className="page-wrapper animate-fade-in">
+        <div className="page-header">
+          <div>
+            <h1 className="page-title">审核中心</h1>
+            <p className="page-subtitle">非 Boss 角色的写操作在此复核</p>
+          </div>
+          <Space>
             <Input
               placeholder="搜索申请人…"
               allowClear
-              style={{ width: 180 }}
+              value={applicantKeyword}
+              onChange={(e) => setApplicantKeyword(e.target.value)}
+              style={{ width: 200 }}
             />
             <Button
               icon={<ReloadOutlined />}
@@ -380,66 +371,48 @@ function Audit() {
           </Space>
         </div>
 
-        {/* 状态筛选 */}
-        <div style={{ marginBottom: 12 }}>
-          <Space>
-            <Tag
-              color={statusFilter === undefined ? 'blue' : 'default'}
-              style={{ cursor: 'pointer' }}
-              onClick={() => {
-                setStatusFilter(undefined);
-                setPage(1);
-              }}
-            >
-              全部
-            </Tag>
-            <Tag
-              color={statusFilter === 'pending' ? 'orange' : 'default'}
-              style={{ cursor: 'pointer' }}
-              onClick={() => {
-                setStatusFilter('pending');
-                setPage(1);
-              }}
-            >
-              待审核
-            </Tag>
-            <Tag
-              color={statusFilter === 'approved' ? 'green' : 'default'}
-              style={{ cursor: 'pointer' }}
-              onClick={() => {
-                setStatusFilter('approved');
-                setPage(1);
-              }}
-            >
-              已通过
-            </Tag>
-            <Tag
-              color={statusFilter === 'rejected' ? 'red' : 'default'}
-              style={{ cursor: 'pointer' }}
-              onClick={() => {
-                setStatusFilter('rejected');
-                setPage(1);
-              }}
-            >
-              已驳回
-            </Tag>
-          </Space>
+        {/* 状态筛选：Segmented 单选，语义化 + 键盘可达 */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+          flexWrap: 'wrap', marginBottom: 'var(--space-3)',
+        }}>
+          <Segmented
+            value={statusFilter ?? STATUS_ALL}
+            onChange={(value) => {
+              setStatusFilter(value === STATUS_ALL ? undefined : String(value));
+              setPage(1);
+            }}
+            options={[
+              { label: '全部', value: STATUS_ALL },
+              { label: '待审核', value: 'pending' },
+              { label: '已通过', value: 'approved' },
+              { label: '已驳回', value: 'rejected' },
+            ]}
+          />
+          <span className="thin-note" style={{
+            border: '1px solid var(--line-soft)',
+            borderRadius: 'var(--radius-md)',
+          }}>
+            {keyword
+              ? `按申请人「${applicantKeyword.trim()}」在当页筛选，命中 ${filteredRows.length} 条`
+              : `共 ${data?.total ?? 0} 条`}
+          </span>
         </div>
 
         <Spin spinning={isLoading}>
-          {!isLoading && (!data || data.data.length === 0) ? (
-            <Empty description="暂无待审核记录" />
+          {!isLoading && filteredRows.length === 0 ? (
+            <Empty description={keyword ? '没有匹配的申请人' : '暂无待审核记录'} />
           ) : (
             <Table<AuditItem>
               columns={columns}
-              dataSource={data?.data ?? []}
+              dataSource={filteredRows}
               rowKey="id"
               scroll={{ x: 1100 }}
               size="middle"
               pagination={{
                 current: page,
                 pageSize,
-                total: data?.total ?? 0,
+                total: keyword ? filteredRows.length : (data?.total ?? 0),
                 showSizeChanger: true,
                 showTotal: (total) => `共 ${total} 条`,
                 onChange: (p, ps) => {
@@ -450,7 +423,7 @@ function Audit() {
             />
           )}
         </Spin>
-      </Card>
+      </div>
 
       {/* 驳回弹窗 — 独立 Modal，解决 Modal.confirm 闭包问题 */}
       <Modal
@@ -468,7 +441,7 @@ function Audit() {
         confirmLoading={rejectMutation.isPending}
         destroyOnClose
       >
-        <div style={{ marginTop: 8 }}>
+        <div style={{ marginTop: 'var(--space-2)' }}>
           <Text type="secondary">
             请输入驳回原因（必填）：
           </Text>
@@ -477,7 +450,7 @@ function Audit() {
             placeholder="请详细说明驳回原因…"
             value={rejectComment}
             onChange={(e) => setRejectComment(e.target.value)}
-            style={{ marginTop: 8 }}
+            style={{ marginTop: 'var(--space-2)' }}
             autoFocus
           />
         </div>
