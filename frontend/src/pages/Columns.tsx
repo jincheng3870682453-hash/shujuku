@@ -37,7 +37,6 @@ function parseOptions(input: unknown): { label: string; value: string }[] | null
       result.push({ label: restored, value: restored });
     }
   }
-  console.log('[parseOptions] input:', trimmed, '-> result:', result);
   return result.length > 0 ? result : null;
 }
 
@@ -152,7 +151,6 @@ function Columns() {
   const handleCreateSubmit = async () => {
     try {
       const values = await form.validateFields();
-      console.log('[handleCreateSubmit] values:', values);
       setModalConfirmLoading(true);
       let options: { label: string; value: string }[] | null = null;
 
@@ -183,9 +181,8 @@ function Columns() {
         options_text: finalOptionsText,
         width: 150, editable: true, sortable: true,
       } as any);
-    } catch (err) {
-      console.log('[handleCreateSubmit] error:', err);
-    } finally {
+      } catch {
+      } finally {
       setModalConfirmLoading(false);
     }
   };
@@ -200,7 +197,6 @@ function Columns() {
     handleEditAutoSaveRef.current = setTimeout(async () => {
       try {
         const values = form.getFieldsValue();
-        console.log('[autoSave] editingColumn:', editingColumn.key, 'values:', values);
 
         let options: { label: string; value: string }[] | null = null;
         if (values.type === 'select') {
@@ -223,9 +219,7 @@ function Columns() {
             options_text: finalOptionsText,
           },
         });
-        console.log('[autoSave] 编辑已保存');
-      } catch (err) {
-        console.log('[autoSave] error:', err);
+      } catch {
       }
     }, 300);
   }, [editingColumn, updateMutation]);

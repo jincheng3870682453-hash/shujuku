@@ -406,7 +406,6 @@ function Settings() {
     try {
       setTestingMysql(true);
       const values = await form.validateFields(['mysql_host', 'mysql_port', 'mysql_user', 'mysql_password', 'mysql_database']);
-      console.log('[测试连接] 请求参数:', { host: values.mysql_host, port: values.mysql_port, user: values.mysql_user, password: values.mysql_password ? '***' : '(空)', database: values.mysql_database });
       const result = await settingsApi.testMysqlConnection({ host: values.mysql_host, port: values.mysql_port, user: values.mysql_user, password: values.mysql_password || '', database: values.mysql_database });
       if (result.success) messageApi.success('MySQL 连接测试成功');
       else messageApi.error(result.message || '连接测试失败');

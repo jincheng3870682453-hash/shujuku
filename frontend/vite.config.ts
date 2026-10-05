@@ -9,6 +9,21 @@ export default defineConfig({
       '@': resolve(__dirname, 'src'),
     },
   },
+  build: {
+    chunkSizeWarningLimit: 1500,
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (id.includes('node_modules')) {
+            if (id.includes('echarts') || id.includes('zrender')) return 'echarts';
+            if (id.includes('xlsx')) return 'xlsx';
+            if (id.includes('antd') || id.includes('@ant-design') || id.includes('rc-')) return 'antd';
+            return 'vendor';
+          }
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     strictPort: false,  // 端口被占用时自动尝试下一个可用端口

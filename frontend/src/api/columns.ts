@@ -5,7 +5,6 @@ export const columnsApi = {
   /** 获取所有列定义（与 dataApi.getColumns 保持完全一致的映射逻辑） */
   getColumns: async (): Promise<FieldDefinition[]> => {
     const data = await client.get('/columns') as Array<Record<string, unknown>>;
-    console.log('[columnsApi.getColumns] raw data:', data);
     return (data ?? []).map((row: Record<string, unknown>) => {
       // ===== 完整映射逻辑，与 dataApi.getColumns 保持一致 =====
       let parsedOptions: { label: string; value: string }[] | null = null;
@@ -25,7 +24,6 @@ export const columnsApi = {
         parsedOptions = rawOptions as { label: string; value: string }[];
       }
       const mappedType: FieldType = (row.field_type as FieldType) || 'text';
-      console.log('[columnsApi.getColumns] row:', row.label, '→ type:', mappedType, 'options:', parsedOptions);
       return {
         key: row.name as string,
         label: row.label as string || '',
