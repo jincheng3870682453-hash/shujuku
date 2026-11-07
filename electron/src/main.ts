@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, dialog, Menu } from 'electron';
 import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
 import fs from 'fs';
@@ -11,8 +11,57 @@ function getAppPyPath(): string {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'app.py');
   }
-  // 开发模式：electron/dist/main.js -> project root
-  return path.join(__dirname, '..', '..', '..', 'app.py');
+  // 开发模式：electron/dist/main.js -> electron/ -> 项目根（此前多写一层 '..'，
+  // 会把项目根错误解析到磁盘根目录，导致开发模式启动即报「未找到后端入口文件」）
+  return path.join(__dirname, '..', '..', 'app.py');
+}
+
+/**
+ * macOS 从 Finder/Dock 启动的 GUI 应用 PATH 极简（通常只有 /usr/bin:/bin:/usr/sbin:/sbin），
+ * 而 Homebrew 的 python3 在 /opt/homebrew/bin（Apple Silicon）或 /usr/local/bin（Intel），
+ * 不在其中，spawn('python3') 会直接 ENOENT。启动后端前把常见安装目录补进 PATH。
+ * Windows 的 GUI 进程继承资源管理器/安装器的完整 PATH，无需处理。
+ */
+function getBackendEnv(): NodeJS.ProcessEnv {
+  if (process.platform !== 'darwin') {
+    return { ...process.env };
+  }
+  const extra = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin'];
+  const current = process.env.PATH || '';
+  const missing = extra.filter((p) => !current.split(':').includes(p));
+  return { ...process.env, PATH: [...missing, current].filter(Boolean).join(':') };
+}
+
+/**
+ * macOS 打包后 resourcesPath 位于 /Applications 下，对普通用户只读，且升级会被整体替换。
+ * 而 app.py 以自身目录为根做三类写操作：
+ *   1) import 期无条件 makedirs(<app.py 目录>/backups/db_backups)（app.py:58）——只读直接崩；
+ *   2) SQLite 落点按 cwd 相对解析 ./data/app.db（backend/config.py 默认值）；
+ *   3) 语义索引 / 同步包 / 备份也写到 <app.py 目录>/data 与 backups。
+ * 因此在打包+macOS 时，把运行所需文件镜像到 userData/runtime（可写、升级保留）再启动。
+ * 镜像每次启动重建以保证与安装版本一致；data/ 仅首次播种（app.db 不存在时），
+ * 避免覆盖用户已有数据库。
+ */
+function prepareMacRuntimeDir(): string {
+  const userData = app.getPath('userData');
+  const runtimeDir = path.join(userData, 'runtime');
+  fs.mkdirSync(runtimeDir, { recursive: true });
+
+  const resources = process.resourcesPath;
+  const seedSrc = path.join(resources, 'data');
+  const seedDst = path.join(runtimeDir, 'data');
+  if (fs.existsSync(seedSrc) && !fs.existsSync(path.join(seedDst, 'app.db'))) {
+    fs.cpSync(seedSrc, seedDst, { recursive: true });
+  }
+
+  for (const name of ['app.py', 'backend', 'static', 'requirements.txt']) {
+    const src = path.join(resources, name);
+    if (!fs.existsSync(src)) continue;
+    const dst = path.join(runtimeDir, name);
+    fs.rmSync(dst, { recursive: true, force: true });
+    fs.cpSync(src, dst, { recursive: true });
+  }
+  return runtimeDir;
 }
 
 /** 获取 Python 解释器命令 */
@@ -26,7 +75,14 @@ function getPythonCommand(): string {
 /** 启动 Flask 后端并等待其就绪 */
 function startBackend(): Promise<void> {
   return new Promise((resolve, reject) => {
-    const appPyPath = getAppPyPath();
+    // macOS 打包模式：使用 userData/runtime 镜像（见 prepareMacRuntimeDir），
+    // 否则 app.py 启动即对只读的 resourcesPath 建目录而崩溃
+    const runtimeDir = app.isPackaged && process.platform === 'darwin'
+      ? prepareMacRuntimeDir()
+      : null;
+    const appPyPath = runtimeDir
+      ? path.join(runtimeDir, 'app.py')
+      : getAppPyPath();
     if (!fs.existsSync(appPyPath)) {
       reject(new Error(`未找到后端入口文件: ${appPyPath}\n请确保已打包 app.py 到 resources 目录。`));
       return;
@@ -34,12 +90,26 @@ function startBackend(): Promise<void> {
 
     const cwd = path.dirname(appPyPath);
     const python = getPythonCommand();
+    // SQLITE_PATH：backend/db_adapter 实际落库依据（相对路径按 cwd 解析到 cwd/data/app.db）；
+    // REGISTRY_DB_PATH：app.py 的 DATABASE_PATH / _get_real_db_path 依据（备份、恢复用它）。
+    // 两者都显式钉到 userData，彻底避免只读目录与版本升级丢数据。
+    const dbPath = app.isPackaged
+      ? path.join(app.getPath('userData'), 'data', 'app.db')
+      : null;
+    if (dbPath) {
+      fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+    }
+    const env: NodeJS.ProcessEnv = {
+      ...getBackendEnv(),
+      ...(dbPath ? { SQLITE_PATH: dbPath, REGISTRY_DB_PATH: dbPath } : {}),
+    };
 
     console.log(`[Electron] 启动后端: ${python} ${appPyPath}`);
     console.log(`[Electron] 工作目录: ${cwd}`);
 
     backendProcess = spawn(python, [appPyPath], {
       cwd,
+      env,
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
       detached: false,
@@ -99,13 +169,46 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 640,
     title: '动态数据登记系统',
-    icon: path.join(process.resourcesPath, 'icon.ico'),
+    // macOS 用 icns，其余平台用 ico（托盘/任务栏图标）
+    icon: process.platform === 'darwin'
+      ? path.join(process.resourcesPath, 'icon.icns')
+      : path.join(process.resourcesPath, 'icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
+
+  // macOS：窗口标题栏保持系统样式，但应用菜单需要显式设置才能显示应用名/快捷键
+  if (process.platform === 'darwin') {
+    Menu.setApplicationMenu(Menu.buildFromTemplate([
+      {
+        label: app.name,
+        submenu: [
+          { role: 'about' },
+          { type: 'separator' },
+          { role: 'services' },
+          { type: 'separator' },
+          { role: 'hide' },
+          { role: 'hideOthers' },
+          { role: 'unhide' },
+          { type: 'separator' },
+          { role: 'quit' },
+        ],
+      },
+      { label: '编辑', submenu: [
+        { role: 'undo' }, { role: 'redo' }, { type: 'separator' },
+        { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' },
+      ]},
+      { label: '视图', submenu: [
+        { role: 'reload' }, { role: 'forceReload' }, { role: 'toggleDevTools' },
+        { type: 'separator' }, { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' },
+        { type: 'separator' }, { role: 'togglefullscreen' },
+      ]},
+      { label: '窗口', submenu: [{ role: 'minimize' }, { role: 'zoom' }, { role: 'close' }] },
+    ]));
+  }
 
   // 加载 Flask 服务的前端页面
   win.loadURL('http://127.0.0.1:5001/');
@@ -130,11 +233,16 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
-  if (backendProcess) {
-    backendProcess.kill();
-    backendProcess = null;
+  // macOS 惯例：关窗不退出、不杀后端，点 Dock 图标 / Cmd+Q 才退出。
+  // 此前这里无条件 kill 后端——mac 上关窗后 activate 重建窗口时后端已死，
+  // 页面必然白屏（后端只在 app 启动/退出时各启停一次）。
+  if (process.platform !== 'darwin') {
+    if (backendProcess) {
+      backendProcess.kill();
+      backendProcess = null;
+    }
+    app.quit();
   }
-  if (process.platform !== 'darwin') app.quit();
 });
 
 app.on('activate', () => {

@@ -28,6 +28,8 @@ extraResources:
     to: "requirements.txt"
   - from: "../icon.ico"
     to: "icon.ico"
+  - from: "build/icon.icns"
+    to: "icon.icns"
 
 asarUnpack:
   - "backend/**/*"
@@ -58,6 +60,11 @@ mac:
         - arm64
   icon: build/icon.icns
   category: public.app-category.productivity
+  # 未签名构建：CI 无证书时跳过签名；有证书（CSC_LINK）时去掉 identity:null 即自动签
+  identity: null
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
 
 # ───── Linux ─────
 linux:

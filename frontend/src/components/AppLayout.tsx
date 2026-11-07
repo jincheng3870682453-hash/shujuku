@@ -393,16 +393,18 @@ export default function AppLayout() {
           {collapsed ? <MenuUnfoldOutlined style={{ fontSize: 15 }} /> : <MenuFoldOutlined style={{ fontSize: 15 }} />}
         </button>
 
-        {/* 面包屑：工作区名 / 当前页面 */}
+        {/* 面包屑：工作区名 / 当前页面（minWidth:0 + overflow 使窄窗下截断省略而不是挤压侧栏/搜索框） */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
           gap: 'var(--space-2)',
           minWidth: 0,
+          flex: '1 1 auto',
+          overflow: 'hidden',
           fontSize: 'var(--fs-13)',
           color: 'var(--ink-muted)',
         }}>
-          <span style={{ whiteSpace: 'nowrap' }}>动态数据登记系统</span>
+          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>动态数据登记系统</span>
           {currentPageTitle && (
             <>
               <span style={{ color: 'var(--line-frame)' }}>/</span>
@@ -411,6 +413,8 @@ export default function AppLayout() {
                 fontSize: 'var(--fs-14)',
                 fontWeight: 600,
                 whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
               }}>
                 {currentPageTitle}
               </b>
@@ -418,7 +422,7 @@ export default function AppLayout() {
           )}
         </div>
 
-        {/* 搜索框 */}
+        {/* 搜索框（flex:none，窄窗时由面包屑让位，避免互相挤压变形） */}
         <div
           style={{
             marginLeft: 'auto',
@@ -428,6 +432,7 @@ export default function AppLayout() {
             width: 240,
             height: 28,
             flex: 'none',
+            flexShrink: 0,
             padding: '0 var(--space-2)',
             background: searchFocused ? 'var(--surface-base)' : 'var(--surface-sunken)',
             border: `1px solid ${searchFocused ? 'var(--accent)' : 'transparent'}`,
@@ -453,7 +458,7 @@ export default function AppLayout() {
           />
         </div>
 
-        {/* 待审核 */}
+        {/* 待审核（flexShrink:0：窄窗下保持完整显示，由面包屑承担收缩） */}
         {pendingCount > 0 && (
           <Badge count={pendingCount} size="small" offset={[-2, 2]}>
             <Link
@@ -468,6 +473,7 @@ export default function AppLayout() {
                 color: 'var(--ink-default)',
                 fontSize: 'var(--fs-13)',
                 whiteSpace: 'nowrap',
+                flexShrink: 0,
               }}
             >
               <AuditOutlined style={{ fontSize: 15 }} />
@@ -476,7 +482,7 @@ export default function AppLayout() {
           </Badge>
         )}
 
-        {/* 当前用户 */}
+        {/* 当前用户（flexShrink:0：窄窗下保持完整显示，由面包屑承担收缩） */}
         <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" trigger={['click']}>
           <div
             style={{
@@ -485,6 +491,7 @@ export default function AppLayout() {
               gap: 'var(--space-2)',
               paddingLeft: 'var(--space-2)',
               borderLeft: '1px solid var(--line-soft)',
+              flexShrink: 0,
               cursor: 'pointer',
             }}
           >

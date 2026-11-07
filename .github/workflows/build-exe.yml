@@ -10,6 +10,16 @@ on:
       - "backend/**"
       - ".github/workflows/build-exe.yml"
   workflow_dispatch:
+    # dry_run 仅作说明性开关，不改变主构建逻辑：
+    #   true  → 跳过最终 artifact 上传，仅验证 frontend/electron/electron-builder 全链路能否跑通
+    #           （适合排查 CI 环境问题，不产生下载产物）
+    #   false → 正常完整构建并上传 EXE artifact（默认行为，与 push 触发一致）
+    inputs:
+      dry_run:
+        description: "试运行：跳过 artifact 上传（默认 false = 完整构建）"
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: exe-${{ github.ref }}
@@ -46,6 +56,8 @@ jobs:
         run: npx electron-builder --win --x64
 
       - name: Upload EXE
+        # dry_run=true 时跳过上传，仅验证构建链路
+        if: ${{ !inputs.dry_run }}
         uses: actions/upload-artifact@v4
         with:
           name: shujuku-setup

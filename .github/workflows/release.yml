@@ -1,0 +1,167 @@
+name: Release
+
+# 触发方式：
+#   1) push tag v*  —— 版本号取自 tag（vX.Y.Z → X.Y.Z）
+#   2) workflow_dispatch —— 可在 UI 传 version（如 6.0.1，可带可不带 v 前缀）；
+#      留空则回退读 electron/package.json 的 version
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "版本号，如 6.0.1（留空则用 electron/package.json 的 version）"
+        required: false
+        default: ""
+
+# release job 需要 contents:write 才能创建 Release 并上传产物
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ── 解析版本：tag 优先，其次 dispatch input，最后 package.json ──
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: ver
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ -n "$INPUT_VERSION" ]; then
+              VERSION="${INPUT_VERSION#v}"
+            else
+              VERSION=$(node -p "require('./electron/package.json').version")
+            fi
+            TAG="v${VERSION}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+            VERSION="${TAG#v}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Resolved: version=$VERSION tag=$TAG"
+
+  # ── 三平台并行构建 ──
+  build:
+    needs: prepare
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Windows：NSIS 安装包 x64
+          - os: windows-latest
+            builder_args: --win --x64
+            artifact_name: windows-x64-exe
+            artifact_paths: |
+              electron/release/*.exe
+          # macOS：单 arm64 runner 交叉构建 x64 + arm64 两份 dmg（取舍说明见 docs/release.md）
+          - os: macos-latest
+            builder_args: --mac --x64 --arm64
+            artifact_name: macos-dmg-x64-arm64
+            artifact_paths: |
+              electron/release/*.dmg
+          # Linux：AppImage x64
+          - os: ubuntu-latest
+            builder_args: --linux --x64
+            artifact_name: linux-x64-appimage
+            artifact_paths: |
+              electron/release/*.AppImage
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            electron/package-lock.json
+
+      # extraResources 依赖 ../frontend/dist，必须先构建前端
+      - name: Install and build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install and build Electron main
+        working-directory: electron
+        run: |
+          npm ci
+          npm run build
+
+      # 用 tag/input 版本覆盖 package.json 里的 6.0.0，避免产物版本号失真
+      - name: Sync package version
+        working-directory: electron
+        shell: bash
+        run: npm version "${{ needs.prepare.outputs.version }}" --no-git-tag-version --allow-same-version
+
+      - name: Package (${{ matrix.os }})
+        working-directory: electron
+        run: npx electron-builder ${{ matrix.builder_args }} --publish never
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_paths }}
+          if-no-files-found: error
+
+  # ── 汇总产物 → 校验和 → 创建 Release ──
+  release:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Generate SHA256 checksums
+        working-directory: artifacts
+        shell: bash
+        run: |
+          sha256sum *.exe *.dmg *.AppImage > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gh release create "$TAG" \
+              --title "动态数据登记系统 $TAG" \
+              --generate-notes \
+              artifacts/SHA256SUMS.txt \
+              artifacts/*.exe \
+              artifacts/*.dmg \
+              artifacts/*.AppImage; then
+            echo "Release $TAG 已存在，改为追加上传（--clobber 覆盖同名产物）"
+            gh release upload "$TAG" --clobber \
+              artifacts/SHA256SUMS.txt \
+              artifacts/*.exe \
+              artifacts/*.dmg \
+              artifacts/*.AppImage
+          fi
