@@ -24,7 +24,9 @@ import sys
 import tempfile
 import unittest
 
-PROJECT_ROOT = r"G:\dynamic_registry"
+# 项目根 = 本测试文件的上级目录（不能用写死的绝对路径：
+# CI / 其他机器检出路径不同，此前 CI 的 8 个失败全是这个原因）
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 class TestImportDoesNotInitDb(unittest.TestCase):
