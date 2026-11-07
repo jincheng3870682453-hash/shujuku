@@ -14,22 +14,13 @@ files:
   - "package.json"
 
 extraResources:
-  - from: "../app.py"
-    to: "app.py"
-  - from: "../desktop.py"
-    to: "desktop.py"
-  - from: "../backend/"
-    to: "backend/"
-    filter:
-      - "**/*.py"
-      - "**/*.sql"
-      - "**/requirements.txt"
-  - from: "../frontend/dist/"
-    to: "static/"
+  # ── 零依赖后端（PyInstaller onedir 产物，CI 里 pyinstaller 打好后放进 backend_dist/）──
+  # 存在时整目录拷入 resources/backend_server/；Electron 优先用它启动后端，
+  # 不存在时回退旧方案（系统 python3 + 源码，见 main.ts getBackendRuntime）。
+  - from: "backend_dist/"
+    to: "backend_server"
   - from: "../data/"
     to: "data/"
-  - from: "../requirements.txt"
-    to: "requirements.txt"
   - from: "../icon.ico"
     to: "icon.ico"
   - from: "build/icon.icns"

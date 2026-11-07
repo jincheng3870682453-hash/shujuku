@@ -114,6 +114,32 @@ jobs:
         shell: bash
         run: npm version "${{ needs.prepare.outputs.version }}" --no-git-tag-version --allow-same-version
 
+      # ── 零依赖后端：PyInstaller onedir → electron/backend_dist/ ──
+      # 打包后 electron-builder 从 backend_dist/ 整目录拷入 resources/backend_server/。
+      # PyInstaller 按当前 runner 平台出对应可执行（win→exe / mac→elf / linux→bin）。
+      - name: Build zero-dependency backend (PyInstaller)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install "pyinstaller>=6.0" "flask>=3.0,<4.0" flask-cors "openpyxl>=3.1" "waitress>=2.1" cryptography
+          pyinstaller backend_server.spec --noconfirm --distpath backend_dist_build
+          rm -rf electron/backend_dist
+          mkdir -p electron/backend_dist
+          mv backend_dist_build/backend_server electron/backend_dist/backend_server
+          # ── 产物自检：可执行存在 + 独立运行冒烟（起服务→探健康接口→杀进程）──
+          EXE="electron/backend_dist/backend_server/backend_server"
+          [ -f "$EXE" ] || [ -f "$EXE.exe" ] || { echo "::error::PyInstaller 产物缺失"; exit 1; }
+          REGISTRY_DB_PATH="$PWD/.ci_smoke.db" REGISTRY_RUN_MODE=desktop REGISTRY_DATA_DIR="$PWD/.ci_ud" \
+            "$EXE" & sleep 6
+          for i in 1 2 3 4 5; do
+            curl -sf http://127.0.0.1:5001/api/health && break || sleep 2
+          done
+          curl -sf http://127.0.0.1:5001/api/health || { echo "::error::零依赖后端冒烟失败"; exit 1; }
+          echo "OK: 零依赖后端冒烟通过 (health 200)"
+          # 清理冒烟进程与文件
+          taskkill //F //IM backend_server.exe 2>/dev/null || pkill -f backend_server 2>/dev/null || true
+
       - name: Package (${{ matrix.os }})
         working-directory: electron
         run: npx electron-builder ${{ matrix.builder_args }} --publish never

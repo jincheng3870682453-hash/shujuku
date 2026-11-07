@@ -33,6 +33,7 @@ from backend.row_store import RowStore, RowStoreConflict
 from backend.config import get_db_config, SQLITE_PATH as ADAPTER_SQLITE_PATH, DB_ENGINE
 
 # ──────────────────────── 数据库路径 ────────────────────────
+RUN_MODE = os.environ.get('REGISTRY_RUN_MODE', 'server').strip().lower()  # server | desktop
 def _resolve_db_path():
     env_path = os.environ.get('REGISTRY_DB_PATH')
     if env_path:
@@ -54,7 +55,14 @@ def _resolve_db_path():
         return fallback
 
 DATABASE_PATH = _resolve_db_path()
-BACKUP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backups', 'db_backups')
+# PyInstaller 打包态（sys.frozen）的可写数据根：默认取可执行文件目录，
+# Electron 打包时会设 REGISTRY_DATA_DIR 指到 userData（mac 的 /Applications 只读）。
+# 源码态以 app.py 所在目录为根，行为与历史版本一致。
+if getattr(sys, 'frozen', False):
+    _data_root = os.environ.get('REGISTRY_DATA_DIR') or os.path.dirname(sys.executable)
+else:
+    _data_root = os.path.dirname(os.path.abspath(__file__))
+BACKUP_DIR = os.environ.get('REGISTRY_BACKUP_DIR') or os.path.join(_data_root, 'backups', 'db_backups')
 os.makedirs(BACKUP_DIR, exist_ok=True)
 
 def _get_real_db_path() -> str:
@@ -72,6 +80,13 @@ else:
 
 _templates_path = os.path.join(base_path, 'templates')
 _static_path = os.path.join(base_path, 'static')
+# 附件上传目录：打包态必须可写。REGISTRY_UPLOAD_DIR 优先，其次 frozen 时用
+# 可执行文件目录，源码态维持 <项目>/static/uploads（历史数据不搬家）。
+if getattr(sys, 'frozen', False):
+    _upload_root = os.environ.get('REGISTRY_UPLOAD_DIR') or os.path.join(_data_root, 'uploads')
+else:
+    _upload_root = None
+UPLOAD_ROOT = _upload_root or os.path.join(_static_path, 'uploads')
 print(f'[INFO] base_path = {base_path}')
 print(f'[INFO] templates 目录: {_templates_path}  存在: {os.path.exists(_templates_path)}')
 print(f'[INFO] static 目录: {_static_path}  存在: {os.path.exists(_static_path)}')
@@ -165,6 +180,7 @@ ALL_PERMISSIONS = [
     'view_data', 'search_data', 'add_data', 'edit_data', 'delete_data',
     'add_field', 'edit_field', 'delete_field', 'batch_add_field',
     'import_excel', 'export_excel',
+    'backup_data',
     'view_logs', 'export_logs', 'clear_logs',
     'audit_center', 'approve_reject',
     'manage_users', 'reset_database',
@@ -177,11 +193,13 @@ ROLE_DEFAULT_PERMISSIONS = {
         'view_data', 'search_data', 'add_data', 'edit_data', 'delete_data',
         'add_field', 'edit_field', 'delete_field', 'batch_add_field',
         'import_excel', 'export_excel',
+        'backup_data',
         'view_logs', 'export_logs',
         'audit_center', 'approve_reject',
         'customize_theme', 'view_structure', 'view_stats',
     ],
-    'employee': ['view_data', 'search_data', 'view_logs', 'view_structure', 'customize_theme'],
+    # backup_data：员工可创建/下载/删除自己的备份（打包态 GUI 用户常是 employee）
+    'employee': ['view_data', 'search_data', 'backup_data', 'view_logs', 'view_structure', 'customize_theme'],
 }
 
 def get_user_permissions(user_id):
@@ -854,7 +872,7 @@ def api_upload():
     # 构建保存路径：static/uploads/YYYY/MM/DD/
     today = datetime.now()
     date_path = today.strftime('%Y/%m/%d')
-    upload_dir = os.path.join(base_path, 'static', 'uploads', date_path)
+    upload_dir = os.path.join(UPLOAD_ROOT, date_path)
     os.makedirs(upload_dir, exist_ok=True)
 
     # 文件名：时间戳_原文件名（转义特殊字符）
@@ -1595,14 +1613,14 @@ def api_import_preview():
 @app.route('/api/backup', methods=['GET'])
 def api_list_backups():
     if not session.get('user_id'): return jsonify({'error': '请先登录'}), 401
-    if not user_has_permission(session['user_id'], 'export_excel'): return jsonify({'error': '权限不足'}), 403
+    if not user_has_permission(session['user_id'], 'backup_data'): return jsonify({'error': '权限不足'}), 403
     rows = get_db().fetch_all("SELECT * FROM backups ORDER BY created_at DESC")
     return jsonify([{'filename': r['filename'], 'size_bytes': r['size_bytes'], 'created_at': r['created_at']} for r in rows])
 
 @app.route('/api/backup', methods=['POST'])
 def api_create_backup():
     if not session.get('user_id'): return jsonify({'error': '请先登录'}), 401
-    if not user_has_permission(session['user_id'], 'export_excel'): return jsonify({'error': '权限不足'}), 403
+    if not user_has_permission(session['user_id'], 'backup_data'): return jsonify({'error': '权限不足'}), 403
     g.current_user_id = session['user_id']; g.current_username = session.get('username', ''); g.current_role = session.get('role', '')
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     filename = f'backup_{timestamp}.db'
@@ -1617,36 +1635,128 @@ def api_create_backup():
     log_operation('创建备份', target_type='backup', target_id=filename, detail=json.dumps({'size': size}, ensure_ascii=False))
     return jsonify({'message': '备份创建成功', 'filename': filename, 'size_bytes': size})
 
+def _safe_backup_path(filename):
+    """
+    防路径穿越：filename 必须是纯文件名（无路径分隔符、无 ..、非点文件），
+    且解析后必须仍落在 BACKUP_DIR 内。非法返回 None。
+    """
+    if not filename or filename in ('.', '..'):
+        return None
+    if '/' in filename or '\\' in filename or '..' in filename:
+        return None
+    if os.path.basename(filename) != filename:
+        return None
+    root = os.path.abspath(BACKUP_DIR)
+    path = os.path.abspath(os.path.join(root, filename))
+    try:
+        if os.path.commonpath([root, path]) != root:
+            return None
+    except ValueError:  # Windows 跨盘符
+        return None
+    return path
+
+
+def _set_audit_context():
+    """log_operation 依赖 g.*；下载/删除等未走装饰器的端点先补上下文"""
+    g.current_user_id = session.get('user_id')
+    g.current_username = session.get('username', '')
+    g.current_role = session.get('role', '')
+
+
 @app.route('/api/backup/<filename>/download', methods=['GET'])
 def api_download_backup(filename):
     if not session.get('user_id'): return jsonify({'error': '请先登录'}), 401
-    file_path = os.path.join(BACKUP_DIR, filename)
-    if not os.path.exists(file_path): return jsonify({'error': '备份文件不存在'}), 404
-    return send_file(file_path, mimetype='application/octet-stream', as_attachment=True, download_name=filename)
+    if not user_has_permission(session['user_id'], 'backup_data'): return jsonify({'error': '权限不足'}), 403
+    file_path = _safe_backup_path(filename)
+    if not file_path or not os.path.isfile(file_path):
+        return jsonify({'error': '备份文件不存在'}), 404
+    _set_audit_context()
+    log_operation('下载备份', target_type='backup', target_id=filename)
+    # 读入内存后立刻释放文件句柄：Windows 下"下载完马上删"时
+    # send_file 的延迟句柄释放会撞 WinError 32（备份文件最大也就百 MB 级）
+    with open(file_path, 'rb') as f:
+        data = f.read()
+    return send_file(io.BytesIO(data), mimetype='application/octet-stream', as_attachment=True, download_name=filename)
 
 @app.route('/api/backup/<filename>', methods=['DELETE'])
 def api_delete_backup(filename):
     if not session.get('user_id'): return jsonify({'error': '请先登录'}), 401
+    if not user_has_permission(session['user_id'], 'backup_data'): return jsonify({'error': '权限不足'}), 403
+    file_path = _safe_backup_path(filename)
+    if not file_path or not os.path.isfile(file_path):
+        return jsonify({'error': '备份文件不存在'}), 404
     db = get_db()
     db.execute_query("DELETE FROM backups WHERE filename = ?", (filename,))
-    # 同时删除备份文件
-    file_path = os.path.join(BACKUP_DIR, filename)
-    if os.path.exists(file_path):
-        os.remove(file_path)
+    # 同时删除备份文件。Windows 下刚下载完句柄释放有延迟，重试 3 次兜底
+    import time
+    for i in range(3):
+        try:
+            os.remove(file_path)
+            break
+        except PermissionError:
+            if i == 2:
+                raise
+            time.sleep(0.5)
+    _set_audit_context()
+    log_operation('删除备份', target_type='backup', target_id=filename)
     return jsonify({'message': '备份已删除'})
 
 @app.route('/api/backup/restore', methods=['POST'])
 @require_role('boss')
 def api_restore_backup():
+    """
+    恢复数据库（高危，仅 boss）。
+
+    三道防线：
+      1) 文件头校验 —— 必须 以 b'SQLite format 3\\x00' 开头（挡掉改名凑数的任意文件）；
+      2) 内容级校验 —— 落临时文件用 sqlite 真实打开，PRAGMA integrity_check 必须为 ok，
+         且必须含本系统 users 表（挡掉"合法 SQLite 但不是本系统库"）；
+      3) 原子替换 —— 新库先写同目录临时文件再 os.replace（同卷原子），替换前自动
+         快照现库到 *_backup_*.db；校验任何一步失败都不会触碰现库。
+    """
     file = request.files.get('file')
     if not file: return jsonify({'error': '请上传数据库文件'}), 400
-    db_path = _get_real_db_path()
-    if os.path.exists(db_path):
-        shutil.copy2(db_path, db_path + f'_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.db')
-    reset_adapter()
-    file.save(db_path)
-    log_operation('恢复数据库备份')
-    return jsonify({'message': '数据库恢复成功'})
+    if not (file.filename or '').lower().endswith('.db'):
+        return jsonify({'error': '只支持 .db 数据库文件'}), 400
+    payload = file.read()
+    if len(payload) < 100:
+        return jsonify({'error': '文件内容无效（过小）'}), 400
+
+    tmp_path = staged = None
+    try:
+        # 1) 内容级校验（经适配层，业务层不直连 sqlite3）：
+        #    文件头 magic + integrity_check + users 表存在
+        fd, tmp_path = tempfile.mkstemp(suffix='.db', dir=BACKUP_DIR)
+        with os.fdopen(fd, 'wb') as f:
+            f.write(payload)
+        from backend.db_adapter import validate_sqlite_file
+        verdict = validate_sqlite_file(tmp_path)
+        if not verdict.get('ok'):
+            return jsonify({'error': verdict.get('error', '数据库校验失败')}), 400
+
+        db_path = _get_real_db_path()
+        os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
+        # 2) 替换前快照现库（可回滚）
+        if os.path.exists(db_path):
+            shutil.copy2(db_path, db_path + f'_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.db')
+        # 3) 原子替换：同目录暂存 + os.replace，任何失败都不损伤现库
+        staged = db_path + f'.restore_{datetime.now().strftime("%Y%m%d_%H%M%S")}.tmp'
+        with open(staged, 'wb') as f:
+            f.write(payload)
+        reset_adapter()
+        os.replace(staged, db_path)
+        staged = None
+        _set_audit_context()
+        log_operation('恢复数据库备份', target_type='backup', target_id=os.path.basename(db_path),
+                      detail=json.dumps({'size': len(payload)}, ensure_ascii=False))
+        return jsonify({'message': '数据库恢复成功'})
+    except DatabaseError as e:
+        return jsonify({'error': f'数据库校验/恢复失败: {e}'}), 400
+    finally:
+        for p in (tmp_path, staged):
+            if p and os.path.exists(p):
+                try: os.remove(p)
+                except OSError: pass
 
 # ──────────────────────── 用户管理 ────────────────────────
 @app.route('/api/users', methods=['GET'])
@@ -1772,7 +1882,11 @@ def _set_config_value(db, key: str, value: str):
     db.execute_query("INSERT INTO system_config (`key`, `value`) VALUES (?, ?)", (key, value))
 
 # ──────────────────────── Phase 5：本地语义检索（零外部 API） ────────────────────────
-_VS_INDEX_PATH = os.path.join(base_path, 'data', 'vecsearch_index.json')
+# 检索索引：打包态写到可写目录（UPLOAD_ROOT 同源），源码态维持 <项目>/data
+if getattr(sys, 'frozen', False):
+    _VS_INDEX_PATH = os.path.join(_data_root, 'data', 'vecsearch_index.json')
+else:
+    _VS_INDEX_PATH = os.path.join(base_path, 'data', 'vecsearch_index.json')
 
 @app.route('/api/search/semantic', methods=['GET'])
 def api_semantic_search():
@@ -1881,7 +1995,9 @@ def api_sync_export():
     try:
         events = export_events(db, since=since)
         # 导出目录可配：默认 data/sync；沙箱/只读部署可用 REGISTRY_SYNC_DIR 指到可写目录
-        out_dir = os.environ.get('REGISTRY_SYNC_DIR') or os.path.join(base_path, 'data', 'sync')
+        out_dir = os.environ.get('REGISTRY_SYNC_DIR') or (
+            os.path.join(_data_root, 'data', 'sync') if getattr(sys, 'frozen', False)
+            else os.path.join(base_path, 'data', 'sync'))
         os.makedirs(out_dir, exist_ok=True)
         stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         out_path = os.path.join(out_dir, f'export_{stamp}.drsync')
@@ -2449,7 +2565,11 @@ def clear_ai_history():
 
 
 # 前端构建产物路径（新 UI 使用 Vite 构建到 frontend/dist）
-FRONTEND_DIST = os.path.join(base_path, 'frontend', 'dist')
+# 前端构建产物：源码态 frontend/dist；PyInstaller 打包态在 _MEIPASS 下直接叫 static（见 desktop.spec datas）
+FRONTEND_DIST = os.path.join(base_path, 'static') if getattr(sys, 'frozen', False) else os.path.join(base_path, 'frontend', 'dist')
+if not os.path.exists(os.path.join(FRONTEND_DIST, 'index.html')):
+    # 打包布局缺失时回退旧布局，双保险
+    FRONTEND_DIST = os.path.join(base_path, 'frontend', 'dist')
 
 def _get_index_html():
     """每次请求时重新读取 index.html，确保最新构建的 JS/CSS 引用生效"""
@@ -2500,30 +2620,37 @@ def serve_react(path):
 
 # ──────────────────────── 启动 ────────────────────────
 if __name__ == '__main__':
+    # 崩溃日志固定写可写数据根（打包态 cwd 可能只读）
+    _crash_log = os.path.join(_data_root if getattr(sys, 'frozen', False) else '.', 'flask_crash.log')
     # 显式初始化：本进程是入口进程，负责建表/补列/种子账户。
     # （import 期已不再自动 init_db，见上方「架构修正」注释）
     try:
         init_db()
     except Exception:
-        with open('flask_crash.log', 'a', encoding='utf-8') as f:
+        with open(_crash_log, 'a', encoding='utf-8') as f:
             f.write(f"=== init_db failed at {datetime.now()} ===\n")
             f.write(traceback.format_exc() + "\n")
         raise
     try:
         import waitress
         port = 5001
-        print(f'[INFO] 动态数据登记系统 - 生产模式启动 (Waitress)')
-        print(f'   后端地址: http://0.0.0.0:{port}')
-        print(f'   前端地址: http://localhost:5173')
-        print(f'   线程数: 20 (支持 150+ 并发)')
-        waitress.serve(app, host='0.0.0.0', port=port, threads=20, channel_timeout=120)
+        if RUN_MODE == 'desktop':
+            # 桌面单机模式：只监听本机回环，不暴露局域网；等待就绪打印放最后（Electron 轮询 5001）
+            print(f'[INFO] 动态数据登记系统 - 桌面模式 (Waitress, 127.0.0.1:{port})')
+            waitress.serve(app, host='127.0.0.1', port=port, threads=8, channel_timeout=120)
+        else:
+            print(f'[INFO] 动态数据登记系统 - 生产模式启动 (Waitress)')
+            print(f'   后端地址: http://0.0.0.0:{port}')
+            print(f'   前端地址: http://localhost:5173')
+            print(f'   线程数: 20 (支持 150+ 并发)')
+            waitress.serve(app, host='0.0.0.0', port=port, threads=20, channel_timeout=120)
     except ImportError:
         print('[WARN] waitress 未安装，使用开发服务器。请执行: pip install waitress')
         port = 5001
         print(f'[INFO] 开发模式启动: http://127.0.0.1:{port}')
         app.run(host='127.0.0.1', port=port, debug=False, threaded=True)
     except Exception:
-        with open('flask_crash.log', 'w', encoding='utf-8') as f:
+        with open(_crash_log, 'w', encoding='utf-8') as f:
             f.write(f"=== Crash at {datetime.now()} ===\n")
             f.write(traceback.format_exc())
         raise

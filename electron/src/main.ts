@@ -64,7 +64,7 @@ function prepareMacRuntimeDir(): string {
   return runtimeDir;
 }
 
-/** 获取 Python 解释器命令 */
+/** 获取 Python 解释器命令（源码回退模式用） */
 function getPythonCommand(): string {
   if (process.platform === 'win32') {
     return 'python';
@@ -72,24 +72,33 @@ function getPythonCommand(): string {
   return 'python3';
 }
 
+/**
+ * 解析后端运行时：零依赖 exe 优先，系统 Python 回退。
+ *  - exe   ：PyInstaller onedir 产物（resources/backend_server/backend_server[.exe]），
+ *           由 CI 打进安装包——用户机器无需任何 Python 环境；
+ *  - python：源码回退（开发模式 / 未打包 exe 的旧安装包），
+ *           走 app.py + 系统 python3，mac 需 prepareMacRuntimeDir 镜像。
+ */
+function getBackendRuntime(): { kind: 'exe'; exePath: string } | { kind: 'python'; appPyPath: string | null } {
+  const exeName = process.platform === 'win32' ? 'backend_server.exe' : 'backend_server';
+  const exePath = path.join(process.resourcesPath, 'backend_server', exeName);
+  if (app.isPackaged && fs.existsSync(exePath)) {
+    return { kind: 'exe', exePath };
+  }
+  // 回退：定位源码 app.py（打包态 darwin 用 userData/runtime 镜像，见 prepareMacRuntimeDir）
+  const runtimeDir = app.isPackaged && process.platform === 'darwin'
+    ? prepareMacRuntimeDir()
+    : null;
+  const appPyPath = runtimeDir
+    ? path.join(runtimeDir, 'app.py')
+    : getAppPyPath();
+  return { kind: 'python', appPyPath: fs.existsSync(appPyPath) ? appPyPath : null };
+}
+
 /** 启动 Flask 后端并等待其就绪 */
 function startBackend(): Promise<void> {
   return new Promise((resolve, reject) => {
-    // macOS 打包模式：使用 userData/runtime 镜像（见 prepareMacRuntimeDir），
-    // 否则 app.py 启动即对只读的 resourcesPath 建目录而崩溃
-    const runtimeDir = app.isPackaged && process.platform === 'darwin'
-      ? prepareMacRuntimeDir()
-      : null;
-    const appPyPath = runtimeDir
-      ? path.join(runtimeDir, 'app.py')
-      : getAppPyPath();
-    if (!fs.existsSync(appPyPath)) {
-      reject(new Error(`未找到后端入口文件: ${appPyPath}\n请确保已打包 app.py 到 resources 目录。`));
-      return;
-    }
 
-    const cwd = path.dirname(appPyPath);
-    const python = getPythonCommand();
     // SQLITE_PATH：backend/db_adapter 实际落库依据（相对路径按 cwd 解析到 cwd/data/app.db）；
     // REGISTRY_DB_PATH：app.py 的 DATABASE_PATH / _get_real_db_path 依据（备份、恢复用它）。
     // 两者都显式钉到 userData，彻底避免只读目录与版本升级丢数据。
@@ -99,15 +108,42 @@ function startBackend(): Promise<void> {
     if (dbPath) {
       fs.mkdirSync(path.dirname(dbPath), { recursive: true });
     }
+    // 可写数据根：备份/上传/检索索引/同步包/崩溃日志统一锚定（app.py frozen 态读 REGISTRY_DATA_DIR）
+    const dataRoot = app.isPackaged ? app.getPath('userData') : null;
+
+    const runtime = getBackendRuntime();
+    let spawnCmd: string;
+    let spawnArgs: string[];
+    let cwd: string;
+    if (runtime.kind === 'exe') {
+      // 零依赖模式：PyInstaller onedir，用户机器无需 Python
+      spawnCmd = runtime.exePath;
+      spawnArgs = [];
+      cwd = path.dirname(runtime.exePath);
+      console.log('[Electron] 后端运行时: 零依赖 exe (PyInstaller)');
+    } else {
+      if (!runtime.appPyPath) {
+        reject(new Error('未找到后端入口: 既无零依赖 backend_server，也无源码 app.py。\n请重新安装或检查安装完整性。'));
+        return;
+      }
+      spawnCmd = getPythonCommand();
+      spawnArgs = [runtime.appPyPath];
+      cwd = path.dirname(runtime.appPyPath);
+      console.log(`[Electron] 后端运行时: 系统 Python (${spawnCmd})，源码回退模式`);
+    }
+
     const env: NodeJS.ProcessEnv = {
       ...getBackendEnv(),
       ...(dbPath ? { SQLITE_PATH: dbPath, REGISTRY_DB_PATH: dbPath } : {}),
+      ...(dataRoot ? { REGISTRY_DATA_DIR: dataRoot } : {}),
+      // 桌面模式：app.py 据此只绑 127.0.0.1（不暴露局域网）
+      REGISTRY_RUN_MODE: 'desktop',
     };
 
-    console.log(`[Electron] 启动后端: ${python} ${appPyPath}`);
+    console.log(`[Electron] 启动后端: ${spawnCmd} ${spawnArgs.join(' ')}`);
     console.log(`[Electron] 工作目录: ${cwd}`);
 
-    backendProcess = spawn(python, [appPyPath], {
+    backendProcess = spawn(spawnCmd, spawnArgs, {
       cwd,
       env,
       stdio: ['ignore', 'pipe', 'pipe'],

@@ -118,3 +118,29 @@
 | electron/src/main.ts | E1-E4（净 +56 行） |
 | frontend/src/components/AppLayout.tsx | F1（面包屑 flex + 3 处 flexShrink） |
 | docs/qa-report.md | 本报告（新建） |
+
+## 安全加固 — 备份链路（2026-11-07 第二轮）
+
+范围：app.py 备份三端点、backend/db_adapter.py 新增校验器。回归：pytest 223 passed / 7 skipped。
+
+### 修复项
+
+| 级别 | 问题 | 修复 |
+|---|---|---|
+| P0 | `/api/backup/restore` 无校验直接覆盖生产库，传坏文件即毁库 | 三道防线：SQLite magic 头校验 → `validate_sqlite_file()`（integrity_check + users 表存在性）→ 同目录暂存 + `os.replace` 原子替换；替换前自动快照现库可回滚；任何校验失败不触碰现库 |
+| P1 | download/delete 的 `filename` 直接拼路径，`../../` 可穿越读/删任意文件 | `_safe_backup_path()`：拒绝分隔符/`..`/basename 不符，`commonpath` 兜底，非法一律 404 |
+| P1 | 下载/删除不记审计日志 | 两端点补 `operations_log` 记录（动作/目标/操作者） |
+| P2 | Windows 下载后立即删除撞 WinError 32 | download 改 BytesIO（读完即释句柄）+ delete 端 `PermissionError` 重试 3 次 |
+| P2 | 前端 hrPermissions 缺 `backup_data`，编辑保存会抹掉 hr 的备份权限 | `Users.tsx` hr 默认权限补齐 |
+
+### 架构合规
+
+SQLite 校验器放 `db_adapter.validate_sqlite_file()`（backend 白名单层），业务层 app.py 不直连 sqlite3，遵守 backend/__init__.py 的导入护栏。
+
+### 验证证据（Flask test client 实测）
+
+1. 坏文件（非 SQLite）恢复 → 400「不是有效的 SQLite 数据库文件」，现库字节级未变
+2. 合法 SQLite 但缺 users 表 → 400「不是本系统的数据库」，现库未变
+3. 完整库恢复 → 200，operations_log 出现「恢复数据库备份 / boss」
+4. `..%2F..%2Fwin.ini` 等穿越下载 → 404
+5. 下载→删除闭环 → 均记「下载备份」「删除备份」日志

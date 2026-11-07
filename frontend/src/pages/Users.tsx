@@ -58,6 +58,7 @@ const allPermissions = [
   'view_data', 'search_data', 'add_data', 'edit_data', 'delete_data',
   'add_field', 'edit_field', 'delete_field', 'batch_add_field',
   'import_excel', 'export_excel',
+  'backup_data',
   'view_logs', 'export_logs', 'clear_logs',
   'audit_center', 'approve_reject',
   'manage_users', 'reset_database',
@@ -76,14 +77,15 @@ const permissionLabels: Record<string, string> = {
   batch_add_field: '批量添加字段',
   import_excel: '导入Excel',
   export_excel: '导出Excel',
+  backup_data: '数据备份',
+  reset_database: '重置数据库',
+  customize_theme: '自定义主题',
   view_logs: '查看日志',
   export_logs: '导出日志',
   clear_logs: '清空日志',
   audit_center: '审核中心',
   approve_reject: '审核通过/驳回',
   manage_users: '管理用户',
-  reset_database: '重置数据库',
-  customize_theme: '自定义主题',
   view_structure: '查看数据结构',
   view_stats: '查看统计',
 };
@@ -93,12 +95,13 @@ const bossPermissions = allPermissions;
 const hrPermissions: string[] = [
   'view_data', 'search_data', 'add_data', 'edit_data',
   'add_field', 'batch_add_field', 'import_excel', 'export_excel',
+  'backup_data',
   'view_logs', 'export_logs',
   'audit_center', 'approve_reject',
   'customize_theme', 'view_structure', 'view_stats',
 ];
 const employeePermissions: string[] = [
-  'view_data', 'search_data', 'view_logs', 'view_structure', 'customize_theme',
+  'view_data', 'search_data', 'backup_data', 'view_logs', 'view_structure', 'customize_theme',
 ];
 
 // ─── 根据权限集推断角色 ───

@@ -978,6 +978,49 @@ def get_adapter() -> DatabaseAdapter:
     return adapter
 
 
+def validate_sqlite_file(path: str, require_table: str = "users") -> Dict[str, Any]:
+    """
+    校验一个文件是否为本系统可用的 SQLite 数据库（恢复备份前的安全门）。
+
+    检查项：
+      1) 文件头 magic：b'SQLite format 3\x00'
+      2) sqlite3 真实打开 + PRAGMA integrity_check == 'ok'
+      3) 必须存在 require_table 表（默认 users，挡"合法 SQLite 但不是本系统库"）
+
+    返回 {'ok': True} 或 {'ok': False, 'error': 原因}。只读打开，不改文件。
+    """
+    try:
+        with open(path, 'rb') as f:
+            header = f.read(16)
+        if header != b'SQLite format 3\x00':
+            return {'ok': False, 'error': '不是有效的 SQLite 数据库文件'}
+    except OSError as e:
+        return {'ok': False, 'error': f'文件不可读: {e}'}
+
+    import sqlite3
+    con = None
+    try:
+        con = sqlite3.connect(path)
+        ic = con.execute('PRAGMA integrity_check').fetchone()[0]
+        if ic != 'ok':
+            return {'ok': False, 'error': f'数据库完整性校验失败: {ic}'}
+        has = con.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+            (require_table,),
+        ).fetchone()
+        if not has:
+            return {'ok': False, 'error': f'不是本系统的数据库（缺少 {require_table} 表）'}
+        return {'ok': True}
+    except sqlite3.Error as e:
+        return {'ok': False, 'error': f'数据库校验失败: {e}'}
+    finally:
+        if con is not None:
+            try:
+                con.close()
+            except Exception:
+                pass
+
+
 def reset_adapter() -> None:
     """重置适配器（兼容旧接口）"""
     pass

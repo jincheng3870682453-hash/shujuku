@@ -46,7 +46,7 @@ const MENU_PERMISSION: Record<string, string> = {
   '/audit':        'audit_center',
   '/logs':         'view_logs',
   '/users':        'manage_users',
-  '/backup':       'reset_database',
+  '/backup':       'backup_data',
   '/ai':           'view_data',
   '/settings':     'customize_theme',
 };
