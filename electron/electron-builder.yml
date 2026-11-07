@@ -1,5 +1,9 @@
 appId: com.dynamic-registry.app
-productName: 动态数据登记系统
+# 产物文件名用 ASCII（dmg/AppImage 文件名里中文会被部分工具截断，
+# 实测 v6.1.0 dmg 变成 "-6.1.0.dmg"）；显示名仍由 nsis.uninstallDisplayName /
+# 快捷方式名用中文，不受影响。
+productName: Dynamic Registry
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 directories:
   output: release
   buildResources: build
@@ -49,9 +53,7 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: 动态数据登记系统
-  uninstallDisplayName: 动态数据登记系统
-
-# ───── macOS ─────
+  uninstallDisplayName: 动态数据登记系统# ───── macOS ─────
 mac:
   target:
     - target: dmg
