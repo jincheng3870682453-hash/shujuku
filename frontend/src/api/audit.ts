@@ -11,11 +11,11 @@ export const auditApi = {
     client.get('/audit', { params }),
 
   /** 审核通过 */
-  approve: (id: number, comment?: string): Promise<{ message: string }> =>
+  approve: (id: string, comment?: string): Promise<{ message: string }> =>
     client.post(`/audit/${id}/approve`, { comment }),
 
   /** 审核驳回 */
-  reject: (id: number, comment: string): Promise<{ message: string }> =>
+  reject: (id: string, comment: string): Promise<{ message: string }> =>
     client.post(`/audit/${id}/reject`, { comment }),
 
   /** 获取待审核数量 */

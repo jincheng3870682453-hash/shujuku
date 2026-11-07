@@ -49,15 +49,15 @@ export const dataApi = {
     client.get('/rows', { params }) as Promise<PaginatedResponse<RowData>>,
 
   createRow: (data: Partial<RowData>) =>
-    client.post('/rows', data) as Promise<{ id: number; message: string }>,
+    client.post('/rows', data) as Promise<{ id: string; message: string }>,
 
-  updateRow: (id: number, data: Partial<RowData>) =>
+  updateRow: (id: string, data: Partial<RowData> & { base_updated_at?: string | null }) =>
     client.put(`/rows/${id}`, data) as Promise<{ message: string }>,
 
-  deleteRow: (id: number) =>
+  deleteRow: (id: string) =>
     client.delete(`/rows/${id}`) as Promise<{ message: string }>,
 
-  batchDelete: (ids: number[]) =>
+  batchDelete: (ids: string[]) =>
     client.post('/rows/batch-delete', { ids }) as Promise<{ message: string }>,
 
   // 导出 Excel

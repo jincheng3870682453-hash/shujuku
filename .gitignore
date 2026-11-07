@@ -29,3 +29,17 @@ _verify_employee_view.py
 demo.html
 demo/
 registry.db
+
+# 本地 Python 虚拟环境与 Phase 0 临时产物，勿提交
+.venv/
+.dsh-tmp/
+.dsh-acl-report/
+
+# 本地数据与临时产物（2026-11 追加）
+dst.db
+pip-unpack-*/
+*.db-shm
+*.db-wal
+static/uploads/
+data/sync/
+data/*.db-journal

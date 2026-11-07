@@ -10,10 +10,10 @@ export const usersApi = {
     client.post('/users', data),
 
   /** 更新用户 */
-  updateUser: (id: number, data: Partial<UserFormValues>): Promise<{ message: string; user: User }> =>
+  updateUser: (id: string, data: Partial<UserFormValues>): Promise<{ message: string; user: User }> =>
     client.put(`/users/${id}`, data),
 
   /** 删除用户 */
-  deleteUser: (id: number): Promise<{ message: string }> =>
+  deleteUser: (id: string): Promise<{ message: string }> =>
     client.delete(`/users/${id}`),
 };

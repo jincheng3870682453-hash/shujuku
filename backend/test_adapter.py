@@ -48,10 +48,10 @@ class TestSQLiteAdapter(unittest.TestCase):
         cls.adapter = SQLiteAdapter(cls.db_path)
         cls.adapter.connect()
 
-        # 建表
+        # 建表（Phase 2b：主键 TEXT + 应用层 UUIDv7，无 AUTOINCREMENT）
         cls.adapter.execute_query("""
             CREATE TABLE IF NOT EXISTS test_users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
                 age INTEGER,
                 created_at TEXT
@@ -101,24 +101,38 @@ class TestSQLiteAdapter(unittest.TestCase):
         ts = self.adapter.get_current_timestamp_sql()
         self.assertIn("datetime", ts)
 
-    # ──────── 自增主键 ────────
+    # ──────── 主键定义 ────────
 
-    def test_auto_increment_sql(self):
-        """SQLite 自增主键语法"""
-        ai = self.adapter.get_auto_increment_sql()
-        self.assertIn("AUTOINCREMENT", ai)
+    def test_primary_key_sql(self):
+        """SQLite 主键为 TEXT（UUIDv7 字符串）"""
+        pk = self.adapter.get_primary_key_sql()
+        self.assertIn("TEXT", pk.upper())
+        self.assertIn("PRIMARY KEY", pk.upper())
+        self.assertNotIn("AUTOINCREMENT", pk.upper())
 
     # ──────── CRUD：插入 ────────
 
     def test_insert_single(self):
-        """测试插入单行数据"""
+        """插入返回应用层生成的 UUIDv7 主键"""
         new_id = self.adapter.insert("test_users", {"name": "Alice", "age": 25})
-        self.assertGreater(new_id, 0)
+        from backend.uuid7 import is_valid_uuid7
+
+        self.assertIsInstance(new_id, str)
+        self.assertTrue(is_valid_uuid7(new_id), new_id)
 
         row = self.adapter.fetch_one("SELECT * FROM test_users WHERE id = ?", (new_id,))
         self.assertIsNotNone(row)
         self.assertEqual(row["name"], "Alice")
         self.assertEqual(row["age"], 25)
+
+    def test_insert_accepts_explicit_id(self):
+        """调用方显式给的 id 必须被沿用（迁移/同步回放依赖此行为）"""
+        explicit = "018f2b9c-7a3d-7c4e-8f01-1234567890ab"
+        returned = self.adapter.insert("test_users", {"id": explicit, "name": "Zoe"})
+        self.assertEqual(returned, explicit)
+        self.assertIsNotNone(
+            self.adapter.fetch_one("SELECT id FROM test_users WHERE id = ?", (explicit,))
+        )
 
     def test_insert_multiple(self):
         """测试插入多行数据"""
@@ -220,7 +234,7 @@ class TestSQLiteAdapter(unittest.TestCase):
         """测试 with 语句上下文管理器"""
         adapter2 = SQLiteAdapter(os.path.join(self.temp_dir, "test_ctx.db"))
         with adapter2 as ad:
-            ad.execute_query("CREATE TABLE IF NOT EXISTS t(x)")
+            ad.execute_query("CREATE TABLE IF NOT EXISTS t(id TEXT PRIMARY KEY, x)")
             ad.insert("t", {"x": "hello"})
             row = ad.fetch_one("SELECT * FROM t")
             self.assertEqual(row["x"], "hello")
@@ -267,10 +281,10 @@ class TestMySQLAdapter(unittest.TestCase):
             )
             cls.adapter.connect()
 
-            # 建测试表
+            # 建测试表（Phase 2b：TEXT 主键）
             cls.adapter.execute_query("""
                 CREATE TABLE IF NOT EXISTS __test_adapter_users (
-                    id INT PRIMARY KEY AUTO_INCREMENT,
+                    id VARCHAR(36) PRIMARY KEY,
                     name VARCHAR(100) NOT NULL,
                     age INT,
                     created_at DATETIME
@@ -314,7 +328,8 @@ class TestMySQLAdapter(unittest.TestCase):
         new_id = self.adapter.insert(
             "__test_adapter_users", {"name": "Alice", "age": 25}
         )
-        self.assertGreater(new_id, 0)
+        self.assertIsInstance(new_id, str)
+        self.assertTrue(len(new_id) == 36, new_id)
 
         # Fetch
         row = self.adapter.fetch_one(
@@ -340,10 +355,12 @@ class TestMySQLAdapter(unittest.TestCase):
         ts = self.adapter.get_current_timestamp_sql()
         self.assertIn("NOW", ts.upper())
 
-    def test_auto_increment_sql(self):
-        """MySQL 自增主键语法"""
-        ai = self.adapter.get_auto_increment_sql()
-        self.assertIn("AUTO_INCREMENT", ai.upper())
+    def test_primary_key_sql(self):
+        """MySQL 主键为 VARCHAR(36)（TEXT 不能直接做 PK）"""
+        pk = self.adapter.get_primary_key_sql()
+        self.assertIn("VARCHAR(36)", pk.upper())
+        self.assertIn("PRIMARY KEY", pk.upper())
+        self.assertNotIn("AUTO_INCREMENT", pk.upper())
 
 
 # ========== 异常处理测试 ==========
@@ -358,7 +375,7 @@ class TestExceptions(unittest.TestCase):
         cls.db_path = os.path.join(cls.temp_dir, "test.db")
         cls.adapter = SQLiteAdapter(cls.db_path)
         cls.adapter.connect()
-        cls.adapter.execute_query("CREATE TABLE IF NOT EXISTS t(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE)")
+        cls.adapter.execute_query("CREATE TABLE IF NOT EXISTS t(id TEXT PRIMARY KEY, name TEXT UNIQUE)")
 
     @classmethod
     def tearDownClass(cls):

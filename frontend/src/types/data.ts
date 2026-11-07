@@ -14,7 +14,7 @@ export interface FieldDefinition {
 }
 
 export interface RowData {
-  id: number;
+  id: string;
   [key: string]: unknown;
 }
 
@@ -29,7 +29,7 @@ export interface PaginatedResponse<T> {
 export type UserRole = 'boss' | 'hr' | 'employee' | 'custom';
 
 export interface User {
-  id: number;
+  id: string;
   username: string;
   role: UserRole;
   permissions: string[];
@@ -54,16 +54,16 @@ export type AuditType = 'create' | 'update' | 'delete' | 'import'
   | 'reset_database' | 'restore_backup';
 
 export interface AuditItem {
-  id: number;
-  row_id: number | null;
+  id: string;
+  row_id: string | null;
   column_name: string | null;
   old_value: string | null;
   new_value: string | null;
   change_type: string;
-  requested_by: number | null;
+  requested_by: string | null;
   /** 后端返回中文状态值（"待审核"/"已通过"/"已驳回"），前端通过 normalizeStatus 映射为英文 key */
   status: string;
-  reviewed_by: number | null;
+  reviewed_by: string | null;
   review_comment: string | null;
   reviewed_at: string | null;
   created_at: string;
@@ -79,7 +79,7 @@ export interface AuditItem {
 
 // ==================== 日志相关 ====================
 export interface LogItem {
-  id: number;
+  id: string;
   timestamp: string;
   username: string;
   role: string;

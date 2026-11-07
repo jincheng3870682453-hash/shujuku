@@ -60,4 +60,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5001/')" || exit 1
 
 # 启动：Waitress 生产模式
-CMD ["sh", "-c", "python -c \"from waitress import serve; from app import app; serve(app, host='0.0.0.0', port=5001, threads=20)\""]
+# ⚠️ 必须显式初始化：app.py 的 import 期已不再自动 init_db()
+# （见 app.py「架构修正」注释），否则 Docker 部署会得到空库。
+# 这里用 bootstrap 模块完成建表后再起 waitress。
+CMD ["sh", "-c", "python -c \"import app as m; m.init_db(); from waitress import serve; serve(m.app, host='0.0.0.0', port=5001, threads=20)\""]

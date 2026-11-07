@@ -17,7 +17,29 @@ import os
 import re
 import time
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
 from typing import Any, Dict, List, Optional, Tuple
+
+# ──────────────────────── 主键生成 ────────────────────────
+
+
+def new_row_id() -> str:
+    """
+    生成新的 TEXT 主键（UUIDv7，见 `backend/uuid7.py`）。
+
+    Phase 2b 起主键不再由数据库自增：`insert()` 在插入前用本函数生成 id。
+    两个理由：
+      * 离线多机各自写库时 AUTOINCREMENT 会生成相同 id，合并即冲突；
+        UUIDv7 可离线生成且全局唯一。
+      * MySQL 的 `LAST_INSERT_ID()` / PostgreSQL 的 `lastval()` 都与连接绑定，
+        并发或连接池复用下回读到的可能不是刚插入的那一行。
+    """
+    try:
+        from .uuid7 import uuid7
+    except ImportError:  # 兼容以顶层模块方式导入（脚本 / 独立测试）
+        from uuid7 import uuid7  # type: ignore
+    return uuid7()
+
 
 # ──────────────────────── 统一异常类 ────────────────────────
 
@@ -142,8 +164,13 @@ class DatabaseAdapter(ABC):
     # ──────── CRUD 快捷方法 ────────
 
     @abstractmethod
-    def insert(self, table: str, data: Dict[str, Any]) -> int:
-        """向指定表插入一行数据，返回新插入行的 last_insert_id"""
+    def insert(self, table: str, data: Dict[str, Any]) -> str:
+        """
+        向指定表插入一行数据，返回新行的 TEXT 主键。
+
+        主键由**应用层**生成（UUIDv7）：`data` 里没有 `id` 时自动补一个，
+        已有时沿用调用方给的值。插入后不再回读自增 id。
+        """
         ...
 
     @abstractmethod
@@ -177,26 +204,18 @@ class DatabaseAdapter(ABC):
         """返回当前时间戳的 SQL 表达式"""
         ...
 
-    # ──────── 自增主键 ────────
+    # ──────── 主键定义 ────────
 
     @abstractmethod
-    def get_auto_increment_sql(self) -> str:
-        """返回自增主键的 SQL 定义片段"""
-        ...
-
-    @abstractmethod
-    def get_last_insert_id_sql(self) -> str:
+    def get_primary_key_sql(self) -> str:
         """
-        返回获取最后插入的自增 ID 的 SQL 语句。
-        SQLite: "SELECT last_insert_rowid() AS id"
-        MySQL:  "SELECT LAST_INSERT_ID() AS id"
+        返回主键列的 SQL 定义片段。
+
+        Phase 2b 起统一为 `TEXT PRIMARY KEY`（值是 UUIDv7 字符串）。
+        MySQL 不允许 TEXT 直接做 PK，由 `convert_create_table_sql` 转成
+        `VARCHAR(36) PRIMARY KEY`。
         """
         ...
-
-    def get_last_insert_id(self) -> int:
-        """获取最后插入的自增 ID（封装完整查询逻辑）"""
-        row = self.fetch_one(self.get_last_insert_id_sql())
-        return row["id"] if row else 0
 
     # ──────── 列名引用 ────────
 
@@ -263,6 +282,63 @@ class DatabaseAdapter(ABC):
         基类不做转换（即保持 SQLite 函数名），MySQL 子类覆盖。
         """
         return sql
+
+    # ──────── 事务边界 ────────
+
+    def _in_transaction(self) -> bool:
+        """当前是否处于显式事务中（由 `transaction()` 上下文管理器设置）"""
+        return getattr(self, "_tx_depth", 0) > 0
+
+    @contextmanager
+    def transaction(self):
+        """
+        显式事务上下文（Phase 2，见 docs/立项-存储层重构.md）。
+
+        为什么需要：`execute_query` 默认每条语句自己 commit，导致
+        「审核通过」这类多步操作（执行业务 + 写操作日志 + 改审核状态）**不是原子的**——
+        中途失败会留下改了一半的数据，而旧代码还会把审核标记成「已通过」。
+
+        特性：
+          * **可嵌套**：内层 `with` 只增加深度，真正的事务由最外层控制
+          * **回滚安全**：内层异常向上传播，由最外层统一回滚
+          * **向后兼容**：不进入本上下文时 `execute_query` 行为与原来完全一致
+
+        用法：
+            with db.transaction():
+                db.execute_query(...)
+                db.execute_query(...)   # 任一失败 → 全部回滚
+        """
+        if not hasattr(self, "_tx_depth"):
+            self._tx_depth = 0
+        self._tx_depth += 1
+
+        # 只有最外层负责发起与收尾事务
+        outermost = self._tx_depth == 1
+        if outermost:
+            self._begin_transaction_impl()
+
+        try:
+            yield self
+        except BaseException:
+            self._tx_depth -= 1
+            if outermost:
+                self._rollback_transaction_impl()
+            raise
+        else:
+            self._tx_depth -= 1
+            if outermost:
+                self._commit_transaction_impl()
+
+    # ── 以下三个由子类按引擎实现；基类默认 no-op（兼容无事务能力的适配器）──
+
+    def _begin_transaction_impl(self) -> None:
+        pass
+
+    def _commit_transaction_impl(self) -> None:
+        pass
+
+    def _rollback_transaction_impl(self) -> None:
+        pass
 
 
 # ──────────────────────── SQLite 适配器 ────────────────────────
@@ -333,6 +409,24 @@ class SQLiteAdapter(DatabaseAdapter):
             finally:
                 self._encrypted_db = None
 
+    def _begin_transaction_impl(self) -> None:
+        # isolation_level=None 是 autocommit 模式，必须显式 BEGIN 才能形成事务
+        self._conn.execute("BEGIN")
+
+    def _commit_transaction_impl(self) -> None:
+        # 同样不能用 self._conn.commit()：autocommit 模式下它是 no-op。
+        # 实测：isolation_level=None 时只有 execute("COMMIT") 才真正提交。
+        if self._conn.in_transaction:
+            self._conn.execute("COMMIT")
+
+    def _rollback_transaction_impl(self) -> None:
+        # 同上，必须用显式 ROLLBACK；self._conn.rollback() 在 autocommit 模式下无效
+        if self._conn.in_transaction:
+            try:
+                self._conn.execute("ROLLBACK")
+            except Exception:
+                pass
+
     def _ensure_connection(self) -> None:
         if self._conn is None:
             self.connect()
@@ -346,7 +440,9 @@ class SQLiteAdapter(DatabaseAdapter):
         converted_sql = self._convert_placeholders(sql)
         try:
             cur = self._conn.execute(converted_sql, params or ())
-            self._conn.commit()
+            # 事务内不单独 commit，交由外层 transaction() 统一收尾
+            if not self._in_transaction():
+                self._conn.commit()
             return cur.rowcount if cur.rowcount >= 0 else 0
         except sqlite3.OperationalError as e:
             error_msg = str(e).lower()
@@ -380,16 +476,28 @@ class SQLiteAdapter(DatabaseAdapter):
 
     # ──────── CRUD 快捷方法 ────────
 
-    def insert(self, table: str, data: Dict[str, Any]) -> int:
-        columns = list(data.keys())
+    def insert(self, table: str, data: Dict[str, Any]) -> str:
+        """
+        插入一行，返回该行的 TEXT 主键（UUIDv7）。
+
+        id 由应用层生成后随 INSERT 一起写入，因此不再回读
+        `last_insert_rowid()` / `LAST_INSERT_ID()`——那两个函数都与连接绑定，
+        并发或连接池复用时未必指向刚插入的行。
+        """
+        payload = dict(data)
+        row_id = payload.get("id")
+        if row_id is None:
+            row_id = new_row_id()
+            payload["id"] = row_id
+
+        columns = list(payload.keys())
         ph = self.get_placeholder()
         placeholders = ", ".join(ph for _ in columns)
         col_names = ", ".join(columns)
-        values = tuple(data.values())
 
         sql = f"INSERT INTO {table} ({col_names}) VALUES ({placeholders})"
-        self.execute_query(sql, values)
-        return self.get_last_insert_id()
+        self.execute_query(sql, tuple(payload.values()))
+        return str(row_id)
 
     def update(self, table: str, data: Dict[str, Any], where: str, params: Tuple) -> int:
         ph = self.get_placeholder()
@@ -426,13 +534,10 @@ class SQLiteAdapter(DatabaseAdapter):
     def get_current_timestamp_sql(self) -> str:
         return "datetime('now','localtime')"
 
-    # ──────── 自增主键 ────────
+    # ──────── 主键定义 ────────
 
-    def get_auto_increment_sql(self) -> str:
-        return "INTEGER PRIMARY KEY AUTOINCREMENT"
-
-    def get_last_insert_id_sql(self) -> str:
-        return "SELECT last_insert_rowid() AS id"
+    def get_primary_key_sql(self) -> str:
+        return "TEXT PRIMARY KEY"
 
     # ──────── 列名引用 ────────
 
@@ -547,6 +652,23 @@ class MySQLAdapter(DatabaseAdapter):
             except Exception as e:
                 raise ConnectionError(f"MySQL 重连失败: {e}", e)
 
+    def _begin_transaction_impl(self) -> None:
+        # pymysql 连接默认 autocommit=False，语句已在隐式事务中，
+        # 无需显式 BEGIN；这里只做连接确保。
+        self._ensure_connection()
+
+    def _commit_transaction_impl(self) -> None:
+        try:
+            self._conn.commit()
+        except Exception:
+            pass
+
+    def _rollback_transaction_impl(self) -> None:
+        try:
+            self._conn.rollback()
+        except Exception:
+            pass
+
     # ──────────────────────────────────────────
     # SQL 函数转换：自动将 SQLite 专属函数替换为 MySQL 兼容语法
     # ──────────────────────────────────────────
@@ -556,13 +678,19 @@ class MySQLAdapter(DatabaseAdapter):
         将 SQL 中的 SQLite 专属函数替换为 MySQL 兼容函数。
         业务层写 SQLite 语法，适配层自动转换。
         """
-        # last_insert_rowid() → LAST_INSERT_ID()
-        converted = sql.replace("last_insert_rowid()", "LAST_INSERT_ID()")
-
+        # Phase 2b：主键改 TEXT + 应用层生成，不再有 last_insert_rowid() 调用。
         # datetime('now') / datetime('now','localtime') → NOW()
         converted = re.sub(
             r"datetime\s*\(\s*'now'(?:\s*,\s*'localtime')?\s*\)",
             "NOW()",
+            sql,
+            flags=re.IGNORECASE,
+        )
+
+        # Phase 2c：RowStore 乐观锁的毫秒时间戳表达式 → MySQL NOW(3)
+        converted = re.sub(
+            r"strftime\s*\(\s*'[^']*'\s*,\s*'now'\s*\)",
+            "NOW(3)",
             converted,
             flags=re.IGNORECASE,
         )
@@ -576,20 +704,20 @@ class MySQLAdapter(DatabaseAdapter):
     def convert_create_table_sql(self, sql: str) -> str:
         """
         将 SQLite 建表语法转换为 MySQL 兼容语法：
-          1. AUTOINCREMENT → AUTO_INCREMENT
-          2. INTEGER PRIMARY KEY AUTO_INCREMENT → INT PRIMARY KEY AUTO_INCREMENT
-          3. TEXT 带约束 → VARCHAR(255)（MySQL 不允许 TEXT 有 DEFAULT 或作为索引键）
-          4. TEXT DEFAULT '...'（无 UNIQUE/NOT NULL） → 移除 DEFAULT，保留 TEXT
+          1. TEXT PRIMARY KEY → VARCHAR(36) PRIMARY KEY
+             （MySQL 不允许 TEXT 直接做主键；UUIDv7 定长 36 字符）
+          2. TEXT 带 UNIQUE / NOT NULL 约束 → VARCHAR(255)
+          3. 仅带 DEFAULT 的 TEXT → 移除 DEFAULT，保持 TEXT
+
+        Phase 2b 起主键是应用层生成的 TEXT（UUIDv7），建表语句里已不存在
+        AUTOINCREMENT / AUTO_INCREMENT，相关转换规则一并删除。
         """
-        converted = sql
-        # 1. AUTOINCREMENT → AUTO_INCREMENT
-        converted = converted.replace("AUTOINCREMENT", "AUTO_INCREMENT")
-        # 2. INTEGER PRIMARY KEY AUTO_INCREMENT → INT PRIMARY KEY AUTO_INCREMENT
-        converted = converted.replace(
-            "INTEGER PRIMARY KEY AUTO_INCREMENT",
-            "INT PRIMARY KEY AUTO_INCREMENT",
+        converted = re.sub(
+            r"\bTEXT\s+PRIMARY\s+KEY\b",
+            "VARCHAR(36) PRIMARY KEY",
+            sql,
+            flags=re.IGNORECASE,
         )
-        # 3 & 4. TEXT 约束处理
         converted = self._replace_text_for_mysql(converted)
         return converted
 
@@ -631,7 +759,9 @@ class MySQLAdapter(DatabaseAdapter):
         try:
             with self._conn.cursor() as cur:
                 affected = cur.execute(converted_sql, params or ())
-                self._conn.commit()
+                # 事务内不单独 commit，交由外层 transaction() 统一收尾
+                if not self._in_transaction():
+                    self._conn.commit()
                 return affected
         except pymysql.err.OperationalError as e:
             error_code = getattr(e, "args", [None])[0] if e.args else None
@@ -640,7 +770,8 @@ class MySQLAdapter(DatabaseAdapter):
                     self.connect()
                     with self._conn.cursor() as cur:
                         affected = cur.execute(converted_sql, params or ())
-                        self._conn.commit()
+                        if not self._in_transaction():
+                            self._conn.commit()
                         return affected
                 except pymysql.Error as e2:
                     raise DatabaseError(f"MySQL 重连后执行仍失败: {e2}", e2)
@@ -698,16 +829,28 @@ class MySQLAdapter(DatabaseAdapter):
 
     # ──────── CRUD 快捷方法 ────────
 
-    def insert(self, table: str, data: Dict[str, Any]) -> int:
-        columns = list(data.keys())
+    def insert(self, table: str, data: Dict[str, Any]) -> str:
+        """
+        插入一行，返回该行的 TEXT 主键（UUIDv7）。
+
+        id 由应用层生成后随 INSERT 一起写入，因此不再回读
+        `last_insert_rowid()` / `LAST_INSERT_ID()`——那两个函数都与连接绑定，
+        并发或连接池复用时未必指向刚插入的行。
+        """
+        payload = dict(data)
+        row_id = payload.get("id")
+        if row_id is None:
+            row_id = new_row_id()
+            payload["id"] = row_id
+
+        columns = list(payload.keys())
         ph = self.get_placeholder()
         placeholders = ", ".join(ph for _ in columns)
         col_names = ", ".join(columns)
-        values = tuple(data.values())
 
         sql = f"INSERT INTO {table} ({col_names}) VALUES ({placeholders})"
-        self.execute_query(sql, values)
-        return self.get_last_insert_id()
+        self.execute_query(sql, tuple(payload.values()))
+        return str(row_id)
 
     def update(self, table: str, data: Dict[str, Any], where: str, params: Tuple) -> int:
         ph = self.get_placeholder()
@@ -744,35 +887,18 @@ class MySQLAdapter(DatabaseAdapter):
     def get_current_timestamp_sql(self) -> str:
         return "NOW()"
 
-    # ──────── 自增主键 ────────
+    # ──────── 主键定义 ────────
 
-    def get_auto_increment_sql(self) -> str:
-        return "INT PRIMARY KEY AUTO_INCREMENT"
-
-    def get_last_insert_id_sql(self) -> str:
-        return "SELECT LAST_INSERT_ID() AS id"
+    def get_primary_key_sql(self) -> str:
+        # MySQL 不允许 TEXT 列直接做主键（必须有前缀长度），
+        # UUIDv7 是固定 36 字符，用 VARCHAR(36) 既合法又省空间。
+        return "VARCHAR(36) PRIMARY KEY"
 
     # ──────── 列名引用 ────────
 
     def get_column_quote(self) -> str:
         """MySQL: 使用反引号（MySQL 专属）"""
         return '`'
-
-    # ──────── 建表转换 ────────
-
-    def convert_create_table_sql(self, sql: str) -> str:
-        """MySQL 版：自动转换 SQLite 建表语法"""
-        converted = sql
-        # AUTOINCREMENT → AUTO_INCREMENT
-        converted = converted.replace("AUTOINCREMENT", "AUTO_INCREMENT")
-        # INTEGER PRIMARY KEY AUTO_INCREMENT → INT PRIMARY KEY AUTO_INCREMENT
-        converted = converted.replace(
-            "INTEGER PRIMARY KEY AUTO_INCREMENT",
-            "INT PRIMARY KEY AUTO_INCREMENT",
-        )
-        # TEXT 约束处理
-        converted = self._replace_text_for_mysql(converted)
-        return converted
 
     # ──────── 表结构查询 ────────
 

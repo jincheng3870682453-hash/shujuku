@@ -29,6 +29,7 @@ import io
 
 
 from backend.db_adapter import get_adapter, DatabaseError, reset_adapter
+from backend.row_store import RowStore, RowStoreConflict
 from backend.config import get_db_config, SQLITE_PATH as ADAPTER_SQLITE_PATH, DB_ENGINE
 
 # ──────────────────────── 数据库路径 ────────────────────────
@@ -102,9 +103,10 @@ def restore_session_from_token():
     if not token.startswith('session-'):
         return
 
-    try:
-        user_id = int(token.replace('session-', ''))
-    except (ValueError, TypeError):
+    # Phase 2b：主键是 UUIDv7 字符串，session token 里的 user_id 也是字符串，
+    # 不再做 int() 转换（转换会把合法 uuid 抛 ValueError，导致登录态漂移）。
+    user_id = token.replace('session-', '').strip()
+    if not user_id:
         return
 
     # 从数据库恢复用户信息到 session
@@ -263,16 +265,19 @@ def log_operation(action, target_type='', target_id='', detail=''):
 
 # ──────────────────────── 数据库初始化 ────────────────────────
 def _convert_sql_for_engine(sql: str) -> str:
-    """将 SQLite 建表语法转换为当前数据库引擎兼容的语法"""
+    """将 SQLite 建表语法转换为当前数据库引擎兼容的语法
+
+    Phase 2b 起主键统一为 TEXT（UUIDv7），建表语句里不再有 AUTOINCREMENT，
+    MySQL 分支只需要处理「TEXT 不能直接做 PK」与「TEXT 不能带索引约束」两点。
+    """
     if DB_ENGINE == 'sqlite':
         return sql
     # MySQL 兼容转换
     converted = sql
-    # 1. AUTOINCREMENT → AUTO_INCREMENT
-    converted = converted.replace('AUTOINCREMENT', 'AUTO_INCREMENT')
-    # 2. INTEGER PRIMARY KEY → INT PRIMARY KEY
-    converted = converted.replace('INTEGER PRIMARY KEY AUTO_INCREMENT', 'INT PRIMARY KEY AUTO_INCREMENT')
-    # 3. 带约束的 TEXT → VARCHAR（MySQL 不允许 TEXT 有 DEFAULT 或作为索引键）
+    # 1. TEXT PRIMARY KEY → VARCHAR(36) PRIMARY KEY（UUIDv7 定长 36 字符；
+    #    MySQL 不允许 TEXT 直接做主键，必须给前缀长度或改用 VARCHAR）
+    converted = re.sub(r"\bTEXT\s+PRIMARY\s+KEY\b", "VARCHAR(36) PRIMARY KEY", converted, flags=re.IGNORECASE)
+    # 2. 带约束的 TEXT → VARCHAR（MySQL 不允许 TEXT 有 DEFAULT 或作为索引键）
     converted = _replace_text_for_mysql(converted)
     return converted
 
@@ -306,34 +311,54 @@ _FIELD_TYPE_MAP = {
 def init_db():
     db = get_adapter()
     ts = db.get_current_timestamp_sql()
+    # Phase 2b：8 张表主键统一 TEXT（UUIDv7，应用层生成），所有引用主键的
+    # 外键列同步改 TEXT。离线多机各自 AUTOINCREMENT 会撞号，这是 .drsync 的硬前置。
     tables = [
-        f"CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'employee', permissions TEXT DEFAULT '[]', global_audit INTEGER DEFAULT 0, theme TEXT DEFAULT NULL, created_at DATETIME DEFAULT ({ts}))",
-        "CREATE TABLE IF NOT EXISTS columns_meta (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL, label TEXT NOT NULL, field_type TEXT NOT NULL DEFAULT 'text', options TEXT, position INTEGER DEFAULT 0)",
-        "CREATE TABLE IF NOT EXISTS rows_data (id INTEGER PRIMARY KEY AUTOINCREMENT)",
-        f"CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, username TEXT, action TEXT, target_table TEXT, target_id TEXT, old_value TEXT, new_value TEXT, created_at DATETIME DEFAULT ({ts}))",
-        f"CREATE TABLE IF NOT EXISTS pending_changes (id INTEGER PRIMARY KEY AUTOINCREMENT, row_id INTEGER, column_name TEXT, old_value TEXT, new_value TEXT, change_type TEXT NOT NULL, requested_by INTEGER, status TEXT DEFAULT '待审核', reviewed_by INTEGER, review_comment TEXT, reviewed_at DATETIME, created_at DATETIME DEFAULT ({ts}))",
-        f"CREATE TABLE IF NOT EXISTS operations_log (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, username TEXT, role TEXT, action TEXT, target_type TEXT, target_id TEXT, detail TEXT, created_at DATETIME DEFAULT ({ts}))",
-        f"CREATE TABLE IF NOT EXISTS backups (id INTEGER PRIMARY KEY AUTOINCREMENT, filename TEXT UNIQUE, size_bytes INTEGER, created_at DATETIME DEFAULT ({ts}))",
+        f"CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'employee', permissions TEXT DEFAULT '[]', global_audit INTEGER DEFAULT 0, theme TEXT DEFAULT NULL, created_at DATETIME DEFAULT ({ts}))",
+        "CREATE TABLE IF NOT EXISTS columns_meta (id TEXT PRIMARY KEY, name TEXT UNIQUE NOT NULL, label TEXT NOT NULL, field_type TEXT NOT NULL DEFAULT 'text', options TEXT, position INTEGER DEFAULT 0)",
+        # Phase 1：rows_data 改为「固定列 + JSON 数据区」。
+        # 动态字段全部落在 data 这一个 JSON 列里，字段数与物理列数彻底解耦，
+        # 不再有 ALTER TABLE ADD COLUMN，也不受 PostgreSQL 1600 列上限约束。
+        f"CREATE TABLE IF NOT EXISTS rows_data (id TEXT PRIMARY KEY, data TEXT NOT NULL DEFAULT '{{}}', created_by TEXT NOT NULL DEFAULT '', schema_version INTEGER NOT NULL DEFAULT 0, created_at DATETIME DEFAULT ({ts}), updated_at DATETIME DEFAULT ({ts}))",
+        f"CREATE TABLE IF NOT EXISTS audit_log (id TEXT PRIMARY KEY, user_id TEXT, username TEXT, action TEXT, target_table TEXT, target_id TEXT, old_value TEXT, new_value TEXT, created_at DATETIME DEFAULT ({ts}))",
+        f"CREATE TABLE IF NOT EXISTS pending_changes (id TEXT PRIMARY KEY, row_id TEXT, column_name TEXT, old_value TEXT, new_value TEXT, change_type TEXT NOT NULL, requested_by TEXT, status TEXT DEFAULT '待审核', reviewed_by TEXT, review_comment TEXT, reviewed_at DATETIME, created_at DATETIME DEFAULT ({ts}))",
+        f"CREATE TABLE IF NOT EXISTS operations_log (id TEXT PRIMARY KEY, user_id TEXT, username TEXT, role TEXT, action TEXT, target_type TEXT, target_id TEXT, detail TEXT, created_at DATETIME DEFAULT ({ts}))",
+        f"CREATE TABLE IF NOT EXISTS backups (id TEXT PRIMARY KEY, filename TEXT UNIQUE, size_bytes INTEGER, created_at DATETIME DEFAULT ({ts}))",
         f"CREATE TABLE IF NOT EXISTS system_config (`key` VARCHAR(255) PRIMARY KEY, `value` TEXT NOT NULL, updated_at DATETIME DEFAULT ({ts}))",
-        f"CREATE TABLE IF NOT EXISTS ai_analysis_history (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, report TEXT, chat_history TEXT, created_at DATETIME DEFAULT ({ts}), updated_at DATETIME DEFAULT ({ts}))",
+        f"CREATE TABLE IF NOT EXISTS ai_analysis_history (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, report TEXT, chat_history TEXT, created_at DATETIME DEFAULT ({ts}), updated_at DATETIME DEFAULT ({ts}))",
     ]
     for t in tables:
         converted = _convert_sql_for_engine(t)
         if converted != t:
             print(f'[DB] SQL converted: {t[:60]}... -> {converted[:60]}...')
         db.execute_query(converted)
-    # ── 自动补齐 rows_data 中的系统列 _created_by（用于权限过滤）──
+    # ── rows_data 结构自检 + 旧库一次性迁移钩子（Phase 1c/d）──
+    # JSONB 方案的 rows_data 有固定列（id/data/created_by/...），由 init_db 的
+    # CREATE TABLE IF NOT EXISTS 直接建好，**不需要任何补列 ALTER**。
+    #
+    # 旧宽表库（字段即列，无 data 列）在这里被检测到时：
+    #   · 绝不自动 ALTER（那是 18 个孤儿列的成因）
+    #   · 打印明确指引，由运维执行 python -m backend.migrate_jsonb
     try:
-        existing_sys_cols = db.get_table_columns('rows_data')
-        sys_col_names = {r['name'] for r in existing_sys_cols}
+        r_cols = {r['name'] for r in db.get_table_columns('rows_data')}
     except Exception:
-        sys_col_names = set()
-    if '_created_by' not in sys_col_names:
-        try:
-            db.execute_query("ALTER TABLE rows_data ADD COLUMN _created_by VARCHAR(255)")
-            print('[INIT] 自动添加系统列: _created_by', flush=True)
-        except Exception as e:
-            print(f'[INIT] 添加系统列 _created_by 失败: {e}', flush=True)
+        r_cols = set()
+    if 'data' not in r_cols:
+        print('[INIT] [WARN] rows_data 仍是旧宽表结构（字段即列，无 data 列）。', flush=True)
+        print('[INIT] [WARN] 请执行一次性迁移：python -m backend.migrate_jsonb', flush=True)
+        print('[INIT] [WARN] 当前物理列数 %d，迁移后将恒为 6' % len(r_cols), flush=True)
+    else:
+        print('[INIT] rows_data 为 JSONB 结构（%d 列）' % len(r_cols), flush=True)
+        # 索引只在确认是新结构后才建：旧宽表没有 created_by 列，
+        # 无条件 CREATE INDEX 会报 "no such column: created_by"。
+        for idx_sql in (
+            "CREATE INDEX IF NOT EXISTS idx_rows_data_created_by ON rows_data(created_by)",
+            "CREATE INDEX IF NOT EXISTS idx_rows_data_created_at ON rows_data(created_at)",
+        ):
+            try:
+                db.execute_query(idx_sql)
+            except Exception as e:
+                print(f'[INIT] 建索引失败（不影响功能）: {e}', flush=True)
     # ── 自动补齐 users 表中的 theme 字段（用于按用户存储自定义背景）──
     try:
         user_cols = db.get_table_columns('users')
@@ -346,52 +371,50 @@ def init_db():
             print('[INIT] 自动添加系统列: users.theme', flush=True)
         except Exception as e:
             print(f'[INIT] 添加系统列 users.theme 失败: {e}', flush=True)
-    # ── 自动补齐 rows_data 中缺失的动态列（通过适配层，兼容 SQLite / MySQL）──
+    # ── rows_data 结构自检（Phase 1c/d）──
+    # 旧方案（宽表）靠这里遍历 columns_meta 逐列 ALTER 补列，是 35 列宽表 +
+    # 18 个孤儿列的直接成因。JSONB 方案下字段只是 JSON 里的键，**无需任何补列**。
+    # 这里只做一件事：发现仍是旧宽表时，明确告知去跑迁移脚本，绝不自动 ALTER。
     try:
-        defined_cols = db.fetch_all("SELECT name, field_type FROM columns_meta ORDER BY position ASC")
-        if defined_cols:
-            # 通过适配层获取当前表的所有列（SQLite: PRAGMA table_info，MySQL: SHOW COLUMNS）
-            try:
-                existing_cols = db.get_table_columns('rows_data')
-                existing_names = {r['name'] for r in existing_cols}
-            except Exception:
-                existing_names = set()
-            for c in defined_cols:
-                cn = c['name']
-                if cn not in existing_names:
-                    ft = c.get('field_type', 'text')
-                    sql_type = _FIELD_TYPE_MAP.get(ft, 'VARCHAR(255)')
-                    try:
-                        db.execute_query(f"ALTER TABLE rows_data ADD COLUMN {cn} {sql_type}")
-                        print(f'[INIT] 自动添加缺失列: {cn} ({sql_type})', flush=True)
-                    except Exception as e:
-                        print(f'[INIT] 添加列 {cn} 失败: {e}', flush=True)
-                else:
-                    # 已存在的列，检查是否需要修正类型（file 字段需要 LONGTEXT）
-                    ft = c.get('field_type', 'text')
-                    expected_type = _FIELD_TYPE_MAP.get(ft, 'VARCHAR(255)')
-                    if ft == 'file' and DB_ENGINE != 'sqlite':
-                        try:
-                            all_cols = db.get_table_columns('rows_data')
-                            col_info = [r for r in all_cols if r['name'] == cn]
-                            if col_info:
-                                current_type = col_info[0]['type']
-                                current_type_lower = current_type.lower()
-                                if current_type_lower not in ('longtext', 'mediumtext') and (
-                                    'varchar' in current_type_lower or ('text' in current_type_lower and 'long' not in current_type_lower)
-                                ):
-                                    db.execute_query(f"ALTER TABLE rows_data MODIFY COLUMN {cn} {expected_type}")
-                                    print(f'[INIT] 修正列类型: {cn} {current_type} → {expected_type}', flush=True)
-                        except Exception as e:
-                            print(f'[INIT] 检查/修正列 {cn} 类型失败: {e}', flush=True)
+        r_cols = {r['name'] for r in db.get_table_columns('rows_data')}
+        if 'data' not in r_cols:
+            print('[INIT] [WARN] rows_data 仍是旧宽表结构（字段即列）。', flush=True)
+            print('[INIT] [WARN] 请执行迁移：python -m backend.migrate_jsonb', flush=True)
+            print('[INIT] [WARN] 当前物理列数: %d（迁移后将恒为 6）' % len(r_cols), flush=True)
+        else:
+            print('[INIT] rows_data 已是 JSONB 结构（%d 列）' % len(r_cols), flush=True)
     except Exception as e:
-        print(f'[INIT] 检查动态列时出错: {e}', flush=True)
-    # ── 自动补齐结束 ──
+        print(f'[INIT] rows_data 结构自检失败: {e}', flush=True)
+    # ── 主键类型自检（Phase 2b）──
+    # 代码已假定 8 张表主键都是 TEXT（UUIDv7）。旧库仍是 INTEGER PK 时，
+    # 写入会报 "datatype mismatch"（SQLite 的 INTEGER PRIMARY KEY 只收整数），
+    # 这里提前吼一声并指明要跑哪个脚本，避免上线后才在日志里看到莫名报错。
+    try:
+        id_type = ''
+        for c in db.get_table_columns('rows_data'):
+            if c.get('name') == 'id':
+                id_type = (c.get('type') or '').upper()
+                break
+        if 'INT' in id_type:
+            print(
+                '[INIT] [WARN] rows_data.id 仍是 %s，新代码要求 TEXT PRIMARY KEY；'
+                '请先执行：python -m backend.migrate_uuid7' % id_type,
+                flush=True,
+            )
+    except Exception as e:
+        print(f'[INIT] 主键类型自检失败: {e}', flush=True)
+    # ── 结构自检结束 ──
 
     for username, _, role in [('boss', '123456', 'boss'), ('hr', '123456', 'hr'), ('employee', '123456', 'employee')]:
         if not db.fetch_one("SELECT id FROM users WHERE username = ?", (username,)):
-            db.execute_query("INSERT INTO users (username, password_hash, role, permissions) VALUES (?,?,?,?)",
-                             (username, hash_password('123456'), role, json.dumps(ROLE_DEFAULT_PERMISSIONS.get(role, []), ensure_ascii=False)))
+            # 主键 TEXT 后必须显式给 id：SQLite 允许 TEXT PK 缺省为 NULL，
+            # 但 PostgreSQL 会直接拒绝，走适配层 insert() 才是唯一写路径。
+            db.insert("users", {
+                "username": username,
+                "password_hash": hash_password('123456'),
+                "role": role,
+                "permissions": json.dumps(ROLE_DEFAULT_PERMISSIONS.get(role, []), ensure_ascii=False),
+            })
     for row in db.fetch_all("SELECT id, role, permissions FROM users"):
         default_perms = ROLE_DEFAULT_PERMISSIONS.get(row['role'], [])
         try:
@@ -427,7 +450,25 @@ def init_db():
         print(f'[INIT] pending_changes 修复失败: {e}', flush=True)
     print('[INFO] 数据库初始化完成')
 
-init_db()
+
+# ──────────────────────────────────────────────────────────────
+# ⚠️ 架构修正（Phase 1c，见 docs/立项-存储层重构.md）
+#
+# 原先这里是裸的 `init_db()`，即「import app」就会执行全部 DDL，
+# 包括给 rows_data 补列的 ALTER TABLE。后果：
+#   1. 任何单测只要 import app 就会**改写生产库 schema**（Phase 0 实测踩到；
+#      test_ai_client.py 因此无法从 backend/ 目录运行）
+#   2. 每次启动都无条件重放 ALTER，与迁移/瘦身逻辑相互打架
+#   3. DDL 跑在 import 期，失败时连 Flask 都起不来，报错信息难以定位
+#
+# 现在改为：只有显式初始化（首启 / CLI / 部署钩子）才执行建表。
+# 不再需要在每次 import 时补列，因为 Phase 1 起字段不再映射到物理列。
+# ──────────────────────────────────────────────────────────────
+_INIT_ON_IMPORT = os.environ.get("REGISTRY_INIT_ON_IMPORT", "").lower() in ("1", "true", "yes")
+if _INIT_ON_IMPORT:
+    init_db()
+else:
+    print("[INFO] 跳过 import 期 init_db()（设 REGISTRY_INIT_ON_IMPORT=1 可恢复旧行为）")
 
 # ──────────────────────── 数据库连接管理 ────────────────────────
 def get_db():
@@ -436,10 +477,23 @@ def get_db():
         g.db = get_adapter()
     return g.db
 
+
+def get_row_store() -> RowStore:
+    """
+    为当前请求获取 RowStore（Phase 1c）。
+
+    与 `get_db()` 复用同一条连接，避免一个请求内开多个连接。
+    JSONB 之后 `rows_data` 的读写全部经此入口。
+    """
+    if not hasattr(g, 'row_store'):
+        g.row_store = RowStore(get_db())
+    return g.row_store
+
 @app.teardown_appcontext
 def close_db(exception):
-    """请求结束时自动关闭数据库连接"""
+    """请求结束时自动关闭连接；RowStore 持有同一连接引用，随连接一起失效"""
     db = g.pop('db', None)
+    g.pop('row_store', None)
     if db is not None:
         db.close()
 
@@ -481,7 +535,17 @@ def convert_field_value(raw, field_type: str):
             if raw.hour == 0 and raw.minute == 0 and raw.second == 0:
                 return raw.strftime('%Y-%m-%d'), None
             return raw.strftime('%Y-%m-%d %H:%M:%S'), None
-        return str(raw), None
+        # Phase 3 类型严格化：字符串必须能解析为日期（ISO8601 优先），
+        # 解析失败返回错误 → 调用方返回 400，而不是把垃圾字符串静默存进 JSON
+        s = str(raw).strip()
+        if s == '':
+            return None, None
+        for fmt in ('%Y-%m-%d', '%Y/%m/%d', '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S', '%Y.%m.%d'):
+            try:
+                return datetime.strptime(s, fmt).strftime('%Y-%m-%d'), None
+            except ValueError:
+                continue
+        return None, f'日期格式不合法：「{raw}」，请使用 YYYY-MM-DD'
     elif ft == 'file':
         return (json.dumps(raw, ensure_ascii=False) if isinstance(raw, dict) else str(raw)), None
     else:
@@ -616,9 +680,11 @@ def api_columns():
     db = get_db()
     role = session.get('role', '')
     if role != 'boss' and is_user_audited(session['user_id']):
-        db.execute_query("INSERT INTO pending_changes (row_id, column_name, new_value, change_type, requested_by, status) VALUES (?,?,?,?,?,?)",
-                         (None, '__new_column__', json.dumps(data, ensure_ascii=False), 'add_column', g.current_user_id, '待审核'))
-        new_id = db.fetch_one("SELECT last_insert_rowid() AS id")['id']
+        new_id = db.insert("pending_changes", {
+            'row_id': None, 'column_name': '__new_column__',
+            'new_value': json.dumps(data, ensure_ascii=False),
+            'change_type': 'add_column', 'requested_by': g.current_user_id, 'status': '待审核',
+        })
         log_operation('提交新增字段审核', target_type='pending_changes', target_id=str(new_id), detail=json.dumps(data, ensure_ascii=False))
         return jsonify({'message': '字段添加申请已提交审核', 'pending': True}), 201
     if db.fetch_one("SELECT id FROM columns_meta WHERE label = ?", (label,)):
@@ -631,10 +697,9 @@ def api_columns():
     except Exception as e:
         print(f'[ERROR] 添加字段到 columns_meta 失败: {e}')
         return jsonify({'error': f'数据库写入失败: {str(e)}'}), 500
-    try:
-        db.execute_query(f"ALTER TABLE rows_data ADD COLUMN {col_name} {sqlite_type(field_type)}")
-    except Exception as e:
-        print(f'[WARN] ALTER TABLE 失败（可能列已存在）: {e}')
+    # Phase 1d：新增字段不再 ALTER TABLE ADD COLUMN。
+    # 字段只是 rows_data.data 这个 JSON 里的键，写路径零 DDL。
+    # 如需为该字段建检索索引，走 RowStore.ensure_indexes()（生成列），按需创建。
     log_operation('添加字段', target_type='columns_meta', target_id=col_name, detail=json.dumps({'label': label}, ensure_ascii=False))
     return jsonify({'name': col_name, 'label': label, 'field_type': field_type}), 201
 
@@ -649,9 +714,10 @@ def api_delete_column_by_name(name):
     if role != 'boss' and is_user_audited(user_id):
         old_val = json.dumps({'label': col['label'], 'field_type': col['field_type']}, ensure_ascii=False)
         new_val = json.dumps({'label': col['label'], 'action': 'delete'}, ensure_ascii=False)
-        db.execute_query("INSERT INTO pending_changes (row_id, column_name, old_value, new_value, change_type, requested_by, status) VALUES (?,?,?,?,?,?,?)",
-                         (None, name, old_val, new_val, 'delete_column', user_id, '待审核'))
-        new_id = db.fetch_one("SELECT last_insert_rowid() AS id")['id']
+        new_id = db.insert("pending_changes", {
+            'row_id': None, 'column_name': name, 'old_value': old_val, 'new_value': new_val,
+            'change_type': 'delete_column', 'requested_by': user_id, 'status': '待审核',
+        })
         log_operation('提交删除字段审核', target_type='pending_changes', target_id=str(new_id),
                       detail=json.dumps({'label': col['label']}, ensure_ascii=False))
         return jsonify({'message': '删除字段申请已提交审核', 'pending': True}), 200
@@ -668,13 +734,15 @@ def api_delete_all_columns():
     db = get_db()
     cols = get_columns()
     if is_user_audited(user_id):
-        db.execute_query("INSERT INTO pending_changes (row_id, column_name, new_value, change_type, requested_by, status) VALUES (?,?,?,?,?,?)",
-                         (None, '__all__', json.dumps({'count': len(cols)}, ensure_ascii=False), 'clear_columns', user_id, '待审核'))
-        new_id = db.fetch_one("SELECT last_insert_rowid() AS id")['id']
+        new_id = db.insert("pending_changes", {
+            'row_id': None, 'column_name': '__all__',
+            'new_value': json.dumps({'count': len(cols)}, ensure_ascii=False),
+            'change_type': 'clear_columns', 'requested_by': user_id, 'status': '待审核',
+        })
         log_operation('提交清空字段审核', target_type='pending_changes', target_id=str(new_id))
         return jsonify({'message': '清空字段申请已提交审核', 'pending': True}), 200
     db.execute_query("DELETE FROM columns_meta")
-    db.execute_query("DELETE FROM rows_data")
+    get_row_store().delete_all_rows()
     log_operation('一键清空所有字段', target_type='columns_meta', detail=json.dumps({'count': len(cols)}, ensure_ascii=False))
     return jsonify({'message': f'已清除 {len(cols)} 个字段及所有数据'})
 
@@ -710,9 +778,11 @@ def api_update_column_config(name):
     if role != 'boss' and is_user_audited(user_id):
         old_val = json.dumps({'label': col['label'], 'field_type': col['field_type'], 'options': col.get('options')}, ensure_ascii=False)
         audit_data = {'label': label, 'type': field_type, 'field_type': field_type, 'options': options_raw, 'required': required}
-        db.execute_query("INSERT INTO pending_changes (row_id, column_name, old_value, new_value, change_type, requested_by, status) VALUES (?,?,?,?,?,?,?)",
-                         (None, name, old_val, json.dumps(audit_data, ensure_ascii=False), 'update_column_config', user_id, '待审核'))
-        new_id = db.fetch_one("SELECT last_insert_rowid() AS id")['id']
+        new_id = db.insert("pending_changes", {
+            'row_id': None, 'column_name': name, 'old_value': old_val,
+            'new_value': json.dumps(audit_data, ensure_ascii=False),
+            'change_type': 'update_column_config', 'requested_by': user_id, 'status': '待审核',
+        })
         log_operation('提交修改字段配置审核', target_type='pending_changes', target_id=str(new_id),
                       detail=json.dumps({'label': label, 'field_type': field_type}, ensure_ascii=False))
         return jsonify({'message': '修改字段配置申请已提交审核', 'pending': True}), 200
@@ -744,9 +814,10 @@ def api_rename_column_by_name(name):
     if role != 'boss' and is_user_audited(user_id):
         old_val = json.dumps({'label': col['label']}, ensure_ascii=False)
         new_val = json.dumps({'label': new_label, 'old_label': col['label']}, ensure_ascii=False)
-        db.execute_query("INSERT INTO pending_changes (row_id, column_name, old_value, new_value, change_type, requested_by, status) VALUES (?,?,?,?,?,?,?)",
-                         (None, name, old_val, new_val, 'rename_column', user_id, '待审核'))
-        new_id = db.fetch_one("SELECT last_insert_rowid() AS id")['id']
+        new_id = db.insert("pending_changes", {
+            'row_id': None, 'column_name': name, 'old_value': old_val, 'new_value': new_val,
+            'change_type': 'rename_column', 'requested_by': user_id, 'status': '待审核',
+        })
         log_operation('提交重命名字段审核', target_type='pending_changes', target_id=str(new_id),
                       detail=json.dumps({'old': col['label'], 'new': new_label}, ensure_ascii=False))
         return jsonify({'message': '重命名字段申请已提交审核', 'pending': True}), 200
@@ -807,15 +878,21 @@ def api_list_rows():
     if not cols: return jsonify({'data': [], 'total': 0, 'page': 1, 'pageSize': 20})
     page = max(1, request.args.get('page', 1, type=int) or 1)
     page_size = min(100, max(1, request.args.get('pageSize', 20, type=int) or 20))
-    col_names = ", ".join(c['name'] for c in cols)
-    db = get_db()
-    # 具备 view_data 权限的用户均可查看全部数据（增删改仍由权限表控制）
-    count_row = db.fetch_one("SELECT COUNT(*) AS cnt FROM rows_data")
-    total = count_row['cnt'] if count_row else 0
-    offset = (page - 1) * page_size
-    rows = db.fetch_all(f"SELECT id, {col_names} FROM rows_data ORDER BY id DESC LIMIT ? OFFSET ?", (page_size, offset))
+    # Phase 1c：读路径走 RowStore，字段不再映射到物理列。
+    # Phase 2c：用 with_system_columns 带出 updated_at（乐观锁版本号），
+    # 一并下发——前端编辑时原样带回，PUT 时不一致即 409。
+    rows, total = get_row_store().fetch_rows_paginated(
+        cols, page=page, page_size=page_size, with_system_columns=True,
+    )
     return jsonify({
-        'data': [{'id': r['id'], **{c['name']: r[c['name']] for c in cols}} for r in rows],
+        'data': [
+            {
+                'id': r['id'],
+                **{c['name']: r[c['name']] for c in cols},
+                'updated_at': r.get('updated_at'),
+            }
+            for r in rows
+        ],
         'total': total,
         'page': page,
         'pageSize': page_size,
@@ -837,41 +914,25 @@ def api_add_row():
         g.current_role = role
         if role != 'boss' and is_user_audited(session['user_id']):
             db = get_db()
-            db.execute_query("INSERT INTO pending_changes (row_id, column_name, new_value, change_type, requested_by, status) VALUES (?,?,?,?,?,?)",
-                             (None, '__full_row__', json.dumps(data, ensure_ascii=False), 'insert', g.current_user_id, '待审核'))
+            db.insert("pending_changes", {
+                'row_id': None, 'column_name': '__full_row__',
+                'new_value': json.dumps(data, ensure_ascii=False),
+                'change_type': 'insert', 'requested_by': g.current_user_id, 'status': '待审核',
+            })
             return jsonify({'message': '数据已提交审核', 'pending': True}), 201
-        db = get_db()
-        values, col_names = [], []
+
+        # Phase 1c：值转换仍是唯一 chokepoint，但不再需要「检测缺列 → ALTER 补列」——
+        # 字段只是 JSON 里的键，写路径上再无 DDL。
+        values = {}
         for c in cols:
             raw = data.get(c['name'])
-            col_names.append(c['name'])
             val, err = convert_field_value(raw, c['field_type'])
-            values.append(val)
-        print(f"[api_add_row] 列名: {col_names}", flush=True)
-        print(f"[api_add_row] 值: {values}", flush=True)
-        
-        # 自动补齐 rows_data 中缺失的动态列（通过适配层，兼容 SQLite / MySQL）
-        try:
-            existing_cols = db.get_table_columns('rows_data')
-            existing_names = {r['name'] for r in existing_cols}
-        except Exception:
-            existing_names = set()
-        for c in cols:
-            cn = c['name']
-            if cn not in existing_names:
-                ft = c.get('field_type', 'text')
-                sql_type = FIELD_TYPE_MAP.get(ft, 'VARCHAR(255)')
-                try:
-                    db.execute_query(f"ALTER TABLE rows_data ADD COLUMN {cn} {sql_type}")
-                    print(f"[api_add_row] 自动添加缺失列: {cn} ({sql_type})", flush=True)
-                except Exception as e:
-                    print(f"[api_add_row] 添加列 {cn} 失败: {e}", flush=True)
-        
-        sql = f"INSERT INTO rows_data ({', '.join(col_names)}, _created_by) VALUES ({', '.join('?' for _ in col_names)}, ?)"
-        print(f"[api_add_row] SQL: {sql}", flush=True)
+            if err:
+                # Phase 3：类型错误直接 400，不再把垃圾值静默写库
+                return jsonify({'error': f'字段「{c["label"]}」{err}'}), 400
+            values[c['name']] = val
         created_by = session.get('username', '')
-        db.execute_query(sql, tuple(values) + (created_by,))
-        new_id = db.fetch_one("SELECT last_insert_rowid() AS id")['id']
+        new_id = get_row_store().insert_row(cols, values, created_by=created_by)
         log_operation('新增数据', target_type='rows_data', target_id=str(new_id))
         print(f"[api_add_row] 新增成功，id={new_id}", flush=True)
         return jsonify({'id': new_id, 'message': '新增成功'}), 201
@@ -880,7 +941,7 @@ def api_add_row():
         traceback.print_exc()
         return jsonify({'error': f'服务器内部错误: {str(e)}'}), 500
 
-@app.route('/api/rows/<int:row_id>', methods=['PUT'])
+@app.route('/api/rows/<string:row_id>', methods=['PUT'])
 def api_update_row(row_id):
     if not session.get('user_id'): return jsonify({'error': '请先登录'}), 401
     if not user_has_permission(session['user_id'], 'edit_data'): return jsonify({'error': '权限不足'}), 403
@@ -891,11 +952,12 @@ def api_update_row(row_id):
     # 权限检查：非管理角色只能修改自己创建的数据
     role = session.get('role', '')
     username = session.get('username', '')
+    store = get_row_store()
     if not can_view_all_rows(role):
-        existing = db.fetch_one("SELECT id FROM rows_data WHERE id = ? AND _created_by = ?", (row_id, username))
+        exists = store.row_exists(row_id, created_by=username)
     else:
-        existing = db.fetch_one("SELECT id FROM rows_data WHERE id = ?", (row_id,))
-    if not existing:
+        exists = store.row_exists(row_id)
+    if not exists:
         print(f'[api_update_row] record {row_id} not found')
         return jsonify({'error': f'记录 {row_id} 不存在或无权修改'}), 404
     g.current_user_id = session['user_id']
@@ -908,23 +970,36 @@ def api_update_row(row_id):
             db.execute_query("INSERT INTO pending_changes (row_id, column_name, new_value, change_type, requested_by, status) VALUES (?,?,?,?,?,?)",
                              (row_id, c['name'], json.dumps(data[c['name']], ensure_ascii=False), 'update', g.current_user_id, '待审核'))
         return jsonify({'message': '修改已提交审核', 'pending': True})
-    set_parts, values = [], []
+    updates = {}
     for c in cols:
         if c['name'] not in data: continue
         val, err = convert_field_value(data[c['name']], c['field_type'])
         if err and c['field_type'] == 'number':
             return jsonify({'error': f'字段「{c["label"]}」需要数字'}), 400
-        set_parts.append(f"{c['name']} = ?")
-        values.append(val)
-    if not set_parts:
+        if err:
+            # Phase 3：date 等类型解析失败 → 400（原来 date 任何字符串都放行）
+            return jsonify({'error': f'字段「{c["label"]}」{err}'}), 400
+        updates[c['name']] = val
+    if not updates:
         print(f'[api_update_row] no matching columns found in data. cols={[c["name"] for c in cols]}, data keys={list(data.keys())}')
         return jsonify({'error': '没有可更新的字段'}), 400
-    values.append(row_id)
-    sql = f"UPDATE rows_data SET {', '.join(set_parts)} WHERE id = ?"
-    print(f'[api_update_row] SQL: {sql}, params: {values}')
+    # Phase 2c 乐观锁：客户端带回打开编辑框时的 updated_at（base_updated_at），
+    # 与当前值比对——不一致说明别人已改过，返回 409 让前端提示刷新。
+    # 未带版本号的旧客户端按原行为处理（不阻断）。
+    base_updated_at = data.get('base_updated_at')
     try:
-        db.execute_query(sql, tuple(values))
+        # RowStore 用 json_set 做服务端原子合并，两人同时改不同字段不会互相覆盖；
+        # 同一行为冲突时由 base_updated_at 拦下（0 行受影响 → 409）
+        affected = store.update_row(row_id, cols, updates, base_updated_at=base_updated_at)
+        if affected == 0 and base_updated_at is not None:
+            # 区分「行没了(404)」与「被别人先改了(409)」
+            if not store.row_exists(row_id):
+                return jsonify({'error': f'记录 {row_id} 不存在'}), 404
+            print(f'[api_update_row] conflict on {row_id}: base_updated_at={base_updated_at}')
+            return jsonify({'error': '目标已被其他操作修改，请刷新后重新提交', 'conflict': True}), 409
         print(f'[api_update_row] update success')
+    except RowStoreConflict as e:
+        return jsonify({'error': str(e), 'conflict': True}), 409
     except Exception as e:
         print(f'[api_update_row] update failed: {e}')
         return jsonify({'error': f'更新失败: {str(e)}'}), 500
@@ -940,19 +1015,20 @@ def api_delete_all_rows():
     if role != 'boss':
         return jsonify({'error': '仅管理员可执行此操作'}), 403
     db = get_db()
-    count_row = db.fetch_one("SELECT COUNT(*) AS cnt FROM rows_data")
-    count = count_row['cnt'] if count_row else 0
+    count = get_row_store().count_rows()
     if is_user_audited(user_id):
-        db.execute_query("INSERT INTO pending_changes (row_id, column_name, new_value, change_type, requested_by, status) VALUES (?,?,?,?,?,?)",
-                         (None, '__all_rows__', json.dumps({'count': count}, ensure_ascii=False), 'clear_rows', user_id, '待审核'))
-        new_id = db.fetch_one("SELECT last_insert_rowid() AS id")['id']
+        new_id = db.insert("pending_changes", {
+            'row_id': None, 'column_name': '__all_rows__',
+            'new_value': json.dumps({'count': count}, ensure_ascii=False),
+            'change_type': 'clear_rows', 'requested_by': user_id, 'status': '待审核',
+        })
         log_operation('提交清空数据审核', target_type='pending_changes', target_id=str(new_id))
         return jsonify({'message': '清空数据申请已提交审核', 'pending': True}), 200
-    db.execute_query("DELETE FROM rows_data")
+    get_row_store().delete_all_rows()
     log_operation('一键清空所有数据', target_type='rows_data', detail=json.dumps({'count': count}, ensure_ascii=False))
     return jsonify({'message': f'已清空所有数据（共 {count} 条）', 'count': count})
 
-@app.route('/api/rows/<int:row_id>', methods=['DELETE'])
+@app.route('/api/rows/<string:row_id>', methods=['DELETE'])
 def api_delete_row(row_id):
     user_id = session.get('user_id')
     if not user_id: return jsonify({'error': '请先登录'}), 401
@@ -960,22 +1036,27 @@ def api_delete_row(row_id):
     db = get_db()
     role = session.get('role', '')
     username = session.get('username', '')
+    store = get_row_store()
     # 权限检查：非管理角色只能删除自己创建的数据
     if not can_view_all_rows(role):
-        existing_row = db.fetch_one("SELECT * FROM rows_data WHERE id = ? AND _created_by = ?", (row_id, username))
+        exists = store.row_exists(row_id, created_by=username)
     else:
-        existing_row = db.fetch_one("SELECT * FROM rows_data WHERE id = ?", (row_id,))
-    if not existing_row: return jsonify({'error': '记录不存在或无权删除'}), 404
+        exists = store.row_exists(row_id)
+    if not exists: return jsonify({'error': '记录不存在或无权删除'}), 404
     g.current_user_id = user_id; g.current_username = session.get('username', ''); g.current_role = role
     # 审核流：HR 角色始终提交审核；员工按全局审核开关决定；boss 直接执行
     if role != 'boss' and (role == 'hr' or is_user_audited(user_id)):
-        row_snapshot = json.dumps(dict(existing_row), ensure_ascii=False, default=str)
-        db.execute_query("INSERT INTO pending_changes (row_id, column_name, old_value, new_value, change_type, requested_by, status) VALUES (?,?,?,?,?,?,?)",
-                         (row_id, '__delete_row__', row_snapshot, '{}', 'delete', user_id, '待审核'))
-        new_id = db.fetch_one("SELECT last_insert_rowid() AS id")['id']
+        # 快照用于审核展示：取整行当前值（含系统列）
+        cols = get_columns()
+        snapshot_row = store.fetch_row_by_id(row_id, cols) or {}
+        row_snapshot = json.dumps(snapshot_row, ensure_ascii=False, default=str)
+        new_id = db.insert("pending_changes", {
+            'row_id': row_id, 'column_name': '__delete_row__', 'old_value': row_snapshot,
+            'new_value': '{}', 'change_type': 'delete', 'requested_by': user_id, 'status': '待审核',
+        })
         log_operation('提交删除数据审核', target_type='pending_changes', target_id=str(new_id))
         return jsonify({'message': '删除申请已提交审核', 'pending': True}), 200
-    db.execute_query("DELETE FROM rows_data WHERE id = ?", (row_id,))
+    store.delete_row(row_id)
     log_operation('删除数据', target_type='rows_data', target_id=str(row_id))
     return jsonify({'message': '已删除'})
 
@@ -991,25 +1072,29 @@ def api_batch_delete_rows():
     db = get_db()
     role = session.get('role', '')
     username = session.get('username', '')
+    store = get_row_store()
     g.current_user_id = user_id; g.current_username = username; g.current_role = role
     deleted = 0
     for row_id in ids:
         try:
             if not can_view_all_rows(role):
-                existing = db.fetch_one("SELECT * FROM rows_data WHERE id = ? AND _created_by = ?", (row_id, username))
+                exists = store.row_exists(row_id, created_by=username)
             else:
-                existing = db.fetch_one("SELECT * FROM rows_data WHERE id = ?", (row_id,))
-            if not existing:
+                exists = store.row_exists(row_id)
+            if not exists:
                 continue
             # 审核流：HR 角色始终提交审核；员工按全局审核开关决定；boss 直接执行
             if role != 'boss' and (role == 'hr' or is_user_audited(user_id)):
-                row_snapshot = json.dumps(dict(existing), ensure_ascii=False, default=str)
-                db.execute_query("INSERT INTO pending_changes (row_id, column_name, old_value, new_value, change_type, requested_by, status) VALUES (?,?,?,?,?,?,?)",
-                                 (row_id, '__delete_row__', row_snapshot, '{}', 'delete', user_id, '待审核'))
-                new_pid = db.fetch_one("SELECT last_insert_rowid() AS id")['id']
+                cols = get_columns()
+                snapshot_row = store.fetch_row_by_id(row_id, cols) or {}
+                row_snapshot = json.dumps(snapshot_row, ensure_ascii=False, default=str)
+                new_pid = db.insert("pending_changes", {
+                    'row_id': row_id, 'column_name': '__delete_row__', 'old_value': row_snapshot,
+                    'new_value': '{}', 'change_type': 'delete', 'requested_by': user_id, 'status': '待审核',
+                })
                 log_operation('批量提交删除数据审核', target_type='pending_changes', target_id=str(new_pid))
             else:
-                db.execute_query("DELETE FROM rows_data WHERE id = ?", (row_id,))
+                store.delete_row(row_id)
                 log_operation('批量删除数据', target_type='rows_data', target_id=str(row_id))
             deleted += 1
         except Exception:
@@ -1078,7 +1163,7 @@ def api_audit_count():
     row = db.fetch_one("SELECT COUNT(*) AS pending FROM pending_changes WHERE status = '待审核'" + ('' if role == 'boss' else ' AND requested_by = ?'), (() if role == 'boss' else (user_id,)))
     return jsonify({'pending': row['pending'] if row else 0})
 
-@app.route('/api/audit/<int:change_id>/approve', methods=['POST'])
+@app.route('/api/audit/<string:change_id>/approve', methods=['POST'])
 @require_perm('approve_reject')
 def api_approve(change_id):
     db = get_db()
@@ -1093,144 +1178,138 @@ def api_approve(change_id):
         new_value = {}
     
     # ── 根据 change_type 执行实际操作 ──
+    # Phase 2：整个「执行业务操作 + 写操作日志 + 改审核状态」放在同一个事务里。
+    # 旧实现在 try/except 后无条件 UPDATE status='已通过'，导致操作失败也标记成已通过，
+    # 审核员会被告知"已通过"而数据实际没变——这是立项书 P0-5 记录的真 bug。
     try:
-        if ct == 'delete':
-            # 删除数据行
-            if row_id:
-                db.execute_query("DELETE FROM rows_data WHERE id = ?", (row_id,))
-                log_operation('审核后删除数据', target_type='rows_data', target_id=str(row_id))
-        elif ct == 'delete_column':
-            col_name = pc['column_name'] or ''
-            if col_name:
-                db.execute_query("DELETE FROM columns_meta WHERE name = ?", (col_name,))
-                log_operation('审核后删除字段', target_type='columns_meta', target_id=col_name)
-        elif ct in ('update_column', 'update_column_config'):
-            col_name = pc['column_name'] or ''
-            if col_name and isinstance(new_value, dict):
-                label = new_value.get('label')
-                field_type = new_value.get('type') or new_value.get('field_type')
-                options = new_value.get('options')
-                if label and field_type:
-                    options_json = json.dumps(options, ensure_ascii=False) if options is not None else None
-                    db.execute_query("UPDATE columns_meta SET label=?, field_type=?, options=? WHERE name=?",
-                                     (label, field_type, options_json, col_name))
-                log_operation('审核后修改字段配置', target_type='columns_meta', target_id=col_name)
-        elif ct == 'rename_column':
-            col_name = pc['column_name'] or ''
-            if col_name and isinstance(new_value, dict):
-                new_label = new_value.get('label', '')
-                if new_label:
-                    db.execute_query("UPDATE columns_meta SET label = ? WHERE name = ?", (new_label, col_name))
-                log_operation('审核后重命名字段', target_type='columns_meta', target_id=col_name)
-        elif ct == 'clear_columns':
-            db.execute_query("DELETE FROM columns_meta")
-            db.execute_query("DELETE FROM rows_data")
-            log_operation('审核后清空所有字段')
-        elif ct == 'clear_rows':
-            db.execute_query("DELETE FROM rows_data")
-            log_operation('审核后清空所有数据')
-        elif ct == 'clear_logs':
-            db.execute_query("DELETE FROM operations_log")
-            log_operation('审核后清空日志')
-        elif ct == 'add_user':
-            if isinstance(new_value, dict):
-                username = new_value.get('username', '')
-                password = new_value.get('password', '')
-                role = new_value.get('role', 'employee')
-                if username and password and len(password) >= 6:
-                    if not db.fetch_one("SELECT id FROM users WHERE username = ?", (username,)):
-                        perms = json.dumps(ROLE_DEFAULT_PERMISSIONS.get(role, []), ensure_ascii=False)
-                        db.execute_query("INSERT INTO users (username, password_hash, role, permissions) VALUES (?,?,?,?)",
-                                         (username, hash_password(password), role, perms))
-                        log_operation('审核后添加用户', target_type='users', detail=json.dumps({'username': username, 'role': role}, ensure_ascii=False))
-        elif ct == 'update_user':
-            if isinstance(new_value, dict):
-                uid = new_value.get('id') or row_id
-                username = new_value.get('username', '')
-                role = new_value.get('role', 'employee')
-                password = new_value.get('password')
-                if uid and username:
-                    if password:
-                        db.execute_query("UPDATE users SET username=?, password_hash=?, role=? WHERE id=?", (username, hash_password(password), role, uid))
-                    else:
-                        db.execute_query("UPDATE users SET username=?, role=? WHERE id=?", (username, role, uid))
-                    log_operation('审核后修改用户', target_type='users', target_id=str(uid))
-        elif ct == 'delete_user':
-            uid = row_id or (new_value.get('id') if isinstance(new_value, dict) else None)
-            if uid:
-                u = db.fetch_one("SELECT username FROM users WHERE id=? AND role!='boss'", (uid,))
-                if u:
-                    db.execute_query("DELETE FROM users WHERE id=?", (uid,))
-                    log_operation('审核后删除用户', target_type='users', target_id=str(uid))
-        elif ct == 'add_column':
-            if isinstance(new_value, dict):
-                label = (new_value.get('label') or '').strip()
-                field_type = new_value.get('field_type') or new_value.get('type', 'text')
-                if label and not db.fetch_one("SELECT id FROM columns_meta WHERE label = ?", (label,)):
-                    max_pos = (db.fetch_one("SELECT COALESCE(MAX(position), -1) + 1 AS np FROM columns_meta") or {}).get('np', 0)
-                    col_name = 'col_' + str(max_pos)
-                    try:
+        with get_db().transaction():
+            if ct == 'delete':
+                # 删除数据行
+                if row_id:
+                    get_row_store().delete_row(row_id)
+                    log_operation('审核后删除数据', target_type='rows_data', target_id=str(row_id))
+            elif ct == 'delete_column':
+                col_name = pc['column_name'] or ''
+                if col_name:
+                    db.execute_query("DELETE FROM columns_meta WHERE name = ?", (col_name,))
+                    log_operation('审核后删除字段', target_type='columns_meta', target_id=col_name)
+            elif ct in ('update_column', 'update_column_config'):
+                col_name = pc['column_name'] or ''
+                if col_name and isinstance(new_value, dict):
+                    label = new_value.get('label')
+                    field_type = new_value.get('type') or new_value.get('field_type')
+                    options = new_value.get('options')
+                    if label and field_type:
+                        options_json = json.dumps(options, ensure_ascii=False) if options is not None else None
+                        db.execute_query("UPDATE columns_meta SET label=?, field_type=?, options=? WHERE name=?",
+                                         (label, field_type, options_json, col_name))
+                    log_operation('审核后修改字段配置', target_type='columns_meta', target_id=col_name)
+            elif ct == 'rename_column':
+                col_name = pc['column_name'] or ''
+                if col_name and isinstance(new_value, dict):
+                    new_label = new_value.get('label', '')
+                    if new_label:
+                        db.execute_query("UPDATE columns_meta SET label = ? WHERE name = ?", (new_label, col_name))
+                    log_operation('审核后重命名字段', target_type='columns_meta', target_id=col_name)
+            elif ct == 'clear_columns':
+                db.execute_query("DELETE FROM columns_meta")
+                get_row_store().delete_all_rows()
+                log_operation('审核后清空所有字段')
+            elif ct == 'clear_rows':
+                get_row_store().delete_all_rows()
+                log_operation('审核后清空所有数据')
+            elif ct == 'clear_logs':
+                db.execute_query("DELETE FROM operations_log")
+                log_operation('审核后清空日志')
+            elif ct == 'add_user':
+                if isinstance(new_value, dict):
+                    username = new_value.get('username', '')
+                    password = new_value.get('password', '')
+                    role = new_value.get('role', 'employee')
+                    if username and password and len(password) >= 6:
+                        if not db.fetch_one("SELECT id FROM users WHERE username = ?", (username,)):
+                            perms = json.dumps(ROLE_DEFAULT_PERMISSIONS.get(role, []), ensure_ascii=False)
+                            db.execute_query("INSERT INTO users (username, password_hash, role, permissions) VALUES (?,?,?,?)",
+                                             (username, hash_password(password), role, perms))
+                            log_operation('审核后添加用户', target_type='users', detail=json.dumps({'username': username, 'role': role}, ensure_ascii=False))
+            elif ct == 'update_user':
+                if isinstance(new_value, dict):
+                    uid = new_value.get('id') or row_id
+                    username = new_value.get('username', '')
+                    role = new_value.get('role', 'employee')
+                    password = new_value.get('password')
+                    if uid and username:
+                        if password:
+                            db.execute_query("UPDATE users SET username=?, password_hash=?, role=? WHERE id=?", (username, hash_password(password), role, uid))
+                        else:
+                            db.execute_query("UPDATE users SET username=?, role=? WHERE id=?", (username, role, uid))
+                        log_operation('审核后修改用户', target_type='users', target_id=str(uid))
+            elif ct == 'delete_user':
+                uid = row_id or (new_value.get('id') if isinstance(new_value, dict) else None)
+                if uid:
+                    u = db.fetch_one("SELECT username FROM users WHERE id=? AND role!='boss'", (uid,))
+                    if u:
+                        db.execute_query("DELETE FROM users WHERE id=?", (uid,))
+                        log_operation('审核后删除用户', target_type='users', target_id=str(uid))
+            elif ct == 'add_column':
+                if isinstance(new_value, dict):
+                    label = (new_value.get('label') or '').strip()
+                    field_type = new_value.get('field_type') or new_value.get('type', 'text')
+                    if label and not db.fetch_one("SELECT id FROM columns_meta WHERE label = ?", (label,)):
+                        max_pos = (db.fetch_one("SELECT COALESCE(MAX(position), -1) + 1 AS np FROM columns_meta") or {}).get('np', 0)
+                        col_name = 'col_' + str(max_pos)
                         options_raw = new_value.get('options')
                         options_json = json.dumps(options_raw, ensure_ascii=False) if options_raw is not None else None
                         db.execute_query("INSERT INTO columns_meta (name, label, field_type, options, position) VALUES (?,?,?,?,?)",
                                          (col_name, label, field_type, options_json, max_pos))
-                        db.execute_query(f"ALTER TABLE rows_data ADD COLUMN {col_name} {sqlite_type(field_type)}")
-                        log_operation('审核后添加字段', target_type='columns_meta', target_id=col_name)
-                    except Exception as e:
-                        print(f'[APPROVE] add_column 失败: {e}')
-        elif ct == 'insert':
-            # 新增数据行 — 参考 api_add_row 逻辑
-            if isinstance(new_value, dict):
-                cols = get_columns()
-                values, col_names = [], []
-                for c in cols:
-                    col_names.append(c['name'])
-                    val, _ = convert_field_value(new_value.get(c['name']), c['field_type'])
-                    values.append(val)
-                try:
-                    existing_cols = db.get_table_columns('rows_data')
-                    existing_names = {r['name'] for r in existing_cols}
-                except: existing_names = set()
-                for c in cols:
-                    cn = c['name']
-                    if cn not in existing_names:
-                        ft = c.get('field_type', 'text')
-                        sql_type = FIELD_TYPE_MAP.get(ft, 'VARCHAR(255)')
-                        try: db.execute_query(f"ALTER TABLE rows_data ADD COLUMN {cn} {sql_type}")
-                        except: pass
-                # 获取请求用户的用户名作为 _created_by
-                req_user = db.fetch_one("SELECT username FROM users WHERE id = ?", (int(pc['requested_by']),)) if pc.get('requested_by') else None
-                created_by_user = req_user['username'] if req_user else ''
-                sql = f"INSERT INTO rows_data ({', '.join(col_names)}, _created_by) VALUES ({', '.join('?' for _ in col_names)}, ?)"
-                db.execute_query(sql, tuple(values) + (created_by_user,))
-                new_id = db.fetch_one("SELECT last_insert_rowid() AS id")['id']
-                log_operation('审核后新增数据', target_type='rows_data', target_id=str(new_id))
-        elif ct == 'update':
-            # 更新数据行 — 参考 api_update_row 逻辑
-            if row_id and isinstance(new_value, dict):
-                cols = get_columns()
-                set_parts, update_values = [], []
-                for c in cols:
-                    if c['name'] not in new_value: continue
-                    val, _ = convert_field_value(new_value[c['name']], c['field_type'])
-                    set_parts.append(f"{c['name']} = ?")
-                    update_values.append(val)
-                if set_parts:
-                    update_values.append(row_id)
-                    db.execute_query(f"UPDATE rows_data SET {', '.join(set_parts)} WHERE id = ?", tuple(update_values))
-                    log_operation('审核后修改数据', target_type='rows_data', target_id=str(row_id))
-        # ── reset_database / restore_backup / import 等复杂操作暂不自动执行，仅标记通过 ──
-        else:
-            print(f'[APPROVE] 未知 change_type: {ct}，仅标记通过')
+                    # Phase 1c：不再 ALTER TABLE ADD COLUMN，字段仅是 JSON 键
+                    log_operation('审核后添加字段', target_type='columns_meta', target_id=col_name)
+            elif ct == 'insert':
+                # 新增数据行 — 走 RowStore，与 api_add_row 同一路径
+                if isinstance(new_value, dict):
+                    cols = get_columns()
+                    values = {}
+                    for c in cols:
+                        val, _ = convert_field_value(new_value.get(c['name']), c['field_type'])
+                        values[c['name']] = val
+                    # 获取请求用户的用户名作为 created_by
+                    req_user = db.fetch_one("SELECT username FROM users WHERE id = ?", (int(pc['requested_by']),)) if pc.get('requested_by') else None
+                    created_by_user = req_user['username'] if req_user else ''
+                    # 不吞异常：失败必须向上抛，让外层 transaction() 回滚
+                    new_id = get_row_store().insert_row(cols, values, created_by=created_by_user)
+                    log_operation('审核后新增数据', target_type='rows_data', target_id=str(new_id))
+            elif ct == 'update':
+                # 更新数据行 — 走 RowStore，与 api_update_row 同一路径
+                if row_id and isinstance(new_value, dict):
+                    cols = get_columns()
+                    updates = {}
+                    for c in cols:
+                        if c['name'] not in new_value: continue
+                        val, _ = convert_field_value(new_value[c['name']], c['field_type'])
+                        updates[c['name']] = val
+                    if updates:
+                        # 不吞异常：失败必须向上抛，让外层 transaction() 回滚
+                        get_row_store().update_row(row_id, cols, updates)
+                        log_operation('审核后修改数据', target_type='rows_data', target_id=str(row_id))
+            # ── reset_database / restore_backup / import 等复杂操作暂不自动执行，仅标记通过 ──
+            else:
+                print(f'[APPROVE] 未知 change_type: {ct}，仅标记通过')
+        # 审核状态与业务操作同事务：业务失败 → 整体回滚，状态保持「待审核」
+        db.execute_query(
+            "UPDATE pending_changes SET status = '已通过', reviewed_by = ?, "
+            "reviewed_at = datetime('now') WHERE id = ?",
+            (g.current_user_id, change_id))
+        log_operation('审核通过', target_type='pending_changes', target_id=str(change_id))
     except Exception as e:
-        print(f'[APPROVE] 执行操作失败 ({ct}): {e}')
+        # 关键修复：执行失败必须让整笔审核回滚，绝不能不标记成「已通过」。
+        # 旧代码在这里吞掉异常后仍执行 UPDATE status='已通过'，
+        # 结果是「操作没生效、记录却显示已通过」，审核员被误导。
+        print(f'[APPROVE] 执行操作失败 ({ct})，已回滚: {e}')
         traceback.print_exc()
-    
-    db.execute_query("UPDATE pending_changes SET status = '已通过', reviewed_by = ?, reviewed_at = datetime('now') WHERE id = ?", (g.current_user_id, change_id))
-    log_operation('审核通过', target_type='pending_changes', target_id=str(change_id))
+        return jsonify({'error': f'审核操作执行失败，已回滚：{str(e)}'}), 500
     return jsonify({'message': '已通过'})
 
-@app.route('/api/audit/<int:change_id>/reject', methods=['POST'])
+@app.route('/api/audit/<string:change_id>/reject', methods=['POST'])
 @require_perm('approve_reject')
 def api_reject(change_id):
     data = request.get_json(force=True) or {}
@@ -1264,9 +1343,10 @@ def api_clear_all_logs():
     role = session.get('role', '')
     db = get_db()
     if role != 'boss' and is_user_audited(user_id):
-        db.execute_query("INSERT INTO pending_changes (row_id, column_name, new_value, change_type, requested_by, status) VALUES (?,?,?,?,?,?)",
-                         (None, '__clear_logs__', '{}', 'clear_logs', user_id, '待审核'))
-        new_id = db.fetch_one("SELECT last_insert_rowid() AS id")['id']
+        new_id = db.insert("pending_changes", {
+            'row_id': None, 'column_name': '__clear_logs__', 'new_value': '{}',
+            'change_type': 'clear_logs', 'requested_by': user_id, 'status': '待审核',
+        })
         log_operation('提交清空日志审核', target_type='pending_changes', target_id=str(new_id))
         return jsonify({'message': '清空日志申请已提交审核', 'pending': True}), 200
     db.execute_query("DELETE FROM operations_log")
@@ -1299,12 +1379,16 @@ def api_stats():
     if not col: return jsonify({'error': '字段不存在'}), 404
     # 权限过滤：非管理角色只能看到自己创建的数据
     role = session.get('role', '')
+    store = get_row_store()
+    col_def = {
+        'name': col['name'], 'label': col['label'],
+        'field_type': col['field_type'] or 'text',
+    }
     if not can_view_all_rows(role):
         username = session.get('username', '')
-        rows = db.fetch_all(f"SELECT {field_key} FROM rows_data WHERE {field_key} IS NOT NULL AND {field_key} != '' AND _created_by = ?", (username,))
+        values = store.fetch_column_values(col_def, "created_by = ?", (username,))
     else:
-        rows = db.fetch_all(f"SELECT {field_key} FROM rows_data WHERE {field_key} IS NOT NULL AND {field_key} != ''")
-    values = [r[field_key] for r in rows]
+        values = store.fetch_column_values(col_def)
     if not values: return jsonify({'field_key': field_key, 'field_label': col['label'], 'total': 0, 'items': []})
     counter = Counter()
     for v in values: counter[str(v)] += 1
@@ -1329,14 +1413,15 @@ def api_export():
     except ImportError:
         return jsonify({'error': '未安装 openpyxl'}), 500
     cols = get_columns()
-    col_names = ", ".join(c['name'] for c in cols) if cols else '*'
     db = get_db()
     role = session.get('role', '')
+    store = get_row_store()
+    # Phase 1c：导出走 RowStore，同样遵守「非管理角色只看自己创建的数据」
     if not can_view_all_rows(role):
         username = session.get('username', '')
-        rows = db.fetch_all(f"SELECT id, {col_names} FROM rows_data WHERE _created_by = ? ORDER BY id ASC", (username,))
+        rows = store.fetch_all_ordered(cols, created_by=username)
     else:
-        rows = db.fetch_all(f"SELECT id, {col_names} FROM rows_data ORDER BY id ASC")
+        rows = store.fetch_all_ordered(cols)
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = '数据登记表'
@@ -1459,8 +1544,8 @@ def api_import():
             values = [row[idx] if idx < len(row) else None for row in rows_data]
             field_type, options = _detect_column_type(values)
             db.execute_query("INSERT INTO columns_meta (name, label, field_type, options, position) VALUES (?,?,?,?,?)", (name, h, field_type, options, max_pos + idx))
-            try: db.execute_query(f"ALTER TABLE rows_data ADD COLUMN {name} {sqlite_type(field_type)}")
-            except: pass
+            # Phase 1c：不再 ALTER TABLE ADD COLUMN——字段只是 JSON 里的键。
+            # 这也是 18 个孤儿列（数据值被误判成表头）不再产生的根本原因。
             new_names.append(name)
         return new_names, get_columns()
     cols = get_columns()
@@ -1468,19 +1553,20 @@ def api_import():
     if not cols:
         new_fields, cols = auto_create_columns(excel_headers, rows_data)
     if not cols: return jsonify({'error': '无法创建字段定义'}), 400
-    col_names = [c['name'] for c in cols]
-    places = ", ".join("?" for _ in col_names)
-    col_list = ", ".join(col_names)
     created_by = session.get('username', '')
+    store = get_row_store()
     ok, fail = 0, 0
     for row in rows_data:
-        vals = []
+        vals = {}
         for i, c in enumerate(cols):
             v = row[i] if i < len(row) else None
             val, _ = convert_field_value(v, c['field_type'])
-            vals.append(val)
-        try: db.execute_query(f"INSERT INTO rows_data ({col_list}, _created_by) VALUES ({places}, ?)", tuple(vals) + (created_by,)); ok += 1
-        except: fail += 1
+            vals[c['name']] = val
+        try:
+            store.insert_row(cols, vals, created_by=created_by)
+            ok += 1
+        except Exception:
+            fail += 1
     log_operation('导入Excel', detail=json.dumps({'import_count': ok, 'fail_count': fail, 'new_fields': len(new_fields)}, ensure_ascii=False))
     msg = f'成功导入 {ok} 条数据'
     if fail > 0: msg += f'，失败 {fail} 条'
@@ -1592,9 +1678,11 @@ def api_create_user():
     db = get_db()
     if db.fetch_one("SELECT id FROM users WHERE username = ?", (username,)): return jsonify({'error': '用户名已存在'}), 400
     if session_role != 'boss' and is_user_audited(user_id):
-        db.execute_query("INSERT INTO pending_changes (row_id, column_name, new_value, change_type, requested_by, status) VALUES (?,?,?,?,?,?)",
-                         (None, username, json.dumps(data, ensure_ascii=False), 'add_user', user_id, '待审核'))
-        new_id = db.fetch_one("SELECT last_insert_rowid() AS id")['id']
+        new_id = db.insert("pending_changes", {
+            'row_id': None, 'column_name': username,
+            'new_value': json.dumps(data, ensure_ascii=False),
+            'change_type': 'add_user', 'requested_by': user_id, 'status': '待审核',
+        })
         log_operation('提交添加用户审核', target_type='pending_changes', target_id=str(new_id))
         return jsonify({'message': '添加用户申请已提交审核', 'pending': True}), 200
     if permissions is not None and isinstance(permissions, list):
@@ -1604,13 +1692,17 @@ def api_create_user():
     else:
         perms = json.dumps(ROLE_DEFAULT_PERMISSIONS.get(user_role, []), ensure_ascii=False)
     global_audit = 1 if audit_enabled else 0
-    db.execute_query("INSERT INTO users (username, password_hash, role, permissions, global_audit) VALUES (?,?,?,?,?)",
-                     (username, hash_password(password), user_role, perms, global_audit))
-    new_uid = db.fetch_one("SELECT last_insert_rowid() AS id")['id']
+    new_uid = db.insert("users", {
+        "username": username,
+        "password_hash": hash_password(password),
+        "role": user_role,
+        "permissions": perms,
+        "global_audit": global_audit,
+    })
     log_operation('添加用户', target_type='users', target_id=str(new_uid), detail=json.dumps({'username': username, 'role': user_role}, ensure_ascii=False))
     return jsonify({'message': '用户创建成功', 'id': new_uid}), 201
 
-@app.route('/api/users/<int:uid>', methods=['PUT'])
+@app.route('/api/users/<string:uid>', methods=['PUT'])
 @require_perm('manage_users')
 def api_update_user(uid):
     data = request.get_json(force=True) or {}
@@ -1625,9 +1717,11 @@ def api_update_user(uid):
     db = get_db()
     if session_role != 'boss' and is_user_audited(user_id):
         audit_data = {'id': uid, 'username': username, 'role': role, 'password': data.get('password'), 'permissions': permissions, 'audit_enabled': audit_enabled}
-        db.execute_query("INSERT INTO pending_changes (row_id, column_name, new_value, change_type, requested_by, status) VALUES (?,?,?,?,?,?)",
-                         (uid, username, json.dumps(audit_data, ensure_ascii=False), 'update_user', user_id, '待审核'))
-        new_id = db.fetch_one("SELECT last_insert_rowid() AS id")['id']
+        new_id = db.insert("pending_changes", {
+            'row_id': uid, 'column_name': username,
+            'new_value': json.dumps(audit_data, ensure_ascii=False),
+            'change_type': 'update_user', 'requested_by': user_id, 'status': '待审核',
+        })
         log_operation('提交修改用户审核', target_type='pending_changes', target_id=str(new_id))
         return jsonify({'message': '修改用户申请已提交审核', 'pending': True}), 200
     # 构建 UPDATE 语句
@@ -1646,7 +1740,7 @@ def api_update_user(uid):
     log_operation('修改用户', target_type='users', target_id=str(uid))
     return jsonify({'message': '用户更新成功'})
 
-@app.route('/api/users/<int:uid>', methods=['DELETE'])
+@app.route('/api/users/<string:uid>', methods=['DELETE'])
 @require_perm('manage_users')
 def api_delete_user(uid):
     user_id = session.get('user_id')
@@ -1655,9 +1749,11 @@ def api_delete_user(uid):
     u = db.fetch_one("SELECT username FROM users WHERE id=? AND role!='boss'", (uid,))
     if not u: return jsonify({'error': '用户不存在或无法删除'}), 404
     if session_role != 'boss' and is_user_audited(user_id):
-        db.execute_query("INSERT INTO pending_changes (row_id, column_name, new_value, change_type, requested_by, status) VALUES (?,?,?,?,?,?)",
-                         (uid, u['username'], json.dumps({'id': uid, 'username': u['username']}, ensure_ascii=False), 'delete_user', user_id, '待审核'))
-        new_id = db.fetch_one("SELECT last_insert_rowid() AS id")['id']
+        new_id = db.insert("pending_changes", {
+            'row_id': uid, 'column_name': u['username'],
+            'new_value': json.dumps({'id': uid, 'username': u['username']}, ensure_ascii=False),
+            'change_type': 'delete_user', 'requested_by': user_id, 'status': '待审核',
+        })
         log_operation('提交删除用户审核', target_type='pending_changes', target_id=str(new_id))
         return jsonify({'message': '删除用户申请已提交审核', 'pending': True}), 200
     db.execute_query("DELETE FROM users WHERE id=?", (uid,))
@@ -1674,6 +1770,192 @@ def _set_config_value(db, key: str, value: str):
     """向 system_config 表写入或更新配置值（先删后插，兼容 SQLite / MySQL）"""
     db.execute_query("DELETE FROM system_config WHERE `key` = ?", (key,))
     db.execute_query("INSERT INTO system_config (`key`, `value`) VALUES (?, ?)", (key, value))
+
+# ──────────────────────── Phase 5：本地语义检索（零外部 API） ────────────────────────
+_VS_INDEX_PATH = os.path.join(base_path, 'data', 'vecsearch_index.json')
+
+@app.route('/api/search/semantic', methods=['GET'])
+def api_semantic_search():
+    """
+    本地轻量语义检索（字符 n-gram + TF-IDF 余弦）。
+
+    与 SQL 检索的区别：不分字段精确匹配，「静宜」能命中「陈静宜」、
+    「人力」能命中「人力资源部」。非真语义（同义改写检索不到），
+    嵌入与检索全部在本机完成，零网络调用。
+    rebuild=1 时重建索引（字段结构变化后需要）。
+    """
+    if not session.get('user_id'): return jsonify({'error': '请先登录'}), 401
+    if not user_has_permission(session['user_id'], 'search_data'): return jsonify({'error': '权限不足'}), 403
+    g.current_user_id = session['user_id']; g.current_username = session.get('username', ''); g.current_role = session.get('role', '')
+    from backend import vecsearch as vs
+
+    query = (request.args.get('q') or '').strip()
+    if not query:
+        return jsonify({'results': [], 'total': 0})
+    try:
+        top_k = min(50, max(1, request.args.get('top_k', 10, type=int) or 10))
+    except ValueError:
+        top_k = 10
+
+    db = get_db()
+    # 权限对齐主列表：非管理角色只检自己创建的行
+    role = session.get('role', '')
+    created_by = None if can_view_all_rows(role) else session.get('username', '')
+
+    idx = None
+    if request.args.get('rebuild') not in ('1', 'true') and os.path.exists(_VS_INDEX_PATH):
+        try:
+            idx = vs.load_index(_VS_INDEX_PATH)
+        except Exception as e:
+            print(f'[vecsearch] 索引加载失败，将重建: {e}', flush=True)
+            idx = None
+    if idx is None:
+        idx = _vs_build_index(db)
+        try:
+            vs.persist_index(idx, _VS_INDEX_PATH)
+        except Exception as e:
+            print(f'[vecsearch] 索引持久化失败（不影响本次检索）: {e}', flush=True)
+
+    results = vs.search(idx, query, top_k=top_k)
+    # 行存在性 + 权限过滤（索引可能比库旧）
+    out = []
+    for hit in results:
+        if created_by is not None:
+            if not get_row_store().row_exists(hit['row_id'], created_by=created_by):
+                continue
+        elif not get_row_store().row_exists(hit['row_id']):
+            continue
+        out.append(hit)
+    log_operation('语义检索', target_type='rows_data', detail=json.dumps({'q': query, 'hits': len(out)}, ensure_ascii=False))
+    return jsonify({'results': out, 'total': len(out), 'query': query})
+
+def _vs_build_index(db):
+    """从当前库重建检索索引（Phase 5）"""
+    from backend import vecsearch as vs
+
+    cols = get_columns()
+    fields = [c['name'] for c in cols]
+    rows = get_row_store().fetch_all_ordered(cols)
+    return vs.build_index(rows, fields=fields)
+
+@app.route('/api/search/rebuild', methods=['POST'])
+def api_semantic_rebuild():
+    """显式重建检索索引（数据大批量导入后调用）"""
+    if not session.get('user_id'): return jsonify({'error': '请先登录'}), 401
+    if not user_has_permission(session['user_id'], 'search_data'): return jsonify({'error': '权限不足'}), 403
+    g.current_user_id = session['user_id']; g.current_username = session.get('username', ''); g.current_role = session.get('role', '')
+    from backend import vecsearch as vs
+
+    db = get_db()
+    idx = _vs_build_index(db)
+    try:
+        vs.persist_index(idx, _VS_INDEX_PATH)
+    except Exception as e:
+        print(f'[vecsearch] 索引持久化失败: {e}', flush=True)
+    log_operation('重建检索索引', target_type='rows_data', detail=json.dumps({'rows': idx.get('row_count', 0)}))
+    return jsonify({'message': '索引已重建', 'row_count': idx.get('row_count', 0)})
+
+# ──────────────────────── Phase 4：.drsync 同步（加密增量包 / 局域网 P2P） ────────────────────────
+@app.route('/api/sync/export', methods=['POST'])
+def api_sync_export():
+    """
+    导出加密 .drsync 增量包。
+
+    数据离开本机前完成加密：服务端只落密文，口令不落盘、不上网络。
+    since 缺省 = 全量；传水位字符串/字典则增量。
+    """
+    user_id = session.get('user_id')
+    if not user_id: return jsonify({'error': '请先登录'}), 401
+    if not user_has_permission(user_id, 'reset_database'):
+        return jsonify({'error': '权限不足（需 reset_database）'}), 403
+    g.current_user_id = user_id; g.current_username = session.get('username', ''); g.current_role = session.get('role', '')
+    from backend.drsync import export_events, write_drsync, SyncError
+
+    data = request.get_json(force=True) or {}
+    password = str(data.get('password') or '')
+    if len(password) < 6:
+        return jsonify({'error': '同步口令至少 6 位（用于加密增量包）'}), 400
+    since = data.get('since')  # None=全量；str 或 {表: 水位}
+
+    db = get_db()
+    try:
+        events = export_events(db, since=since)
+        # 导出目录可配：默认 data/sync；沙箱/只读部署可用 REGISTRY_SYNC_DIR 指到可写目录
+        out_dir = os.environ.get('REGISTRY_SYNC_DIR') or os.path.join(base_path, 'data', 'sync')
+        os.makedirs(out_dir, exist_ok=True)
+        stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        out_path = os.path.join(out_dir, f'export_{stamp}.drsync')
+        write_drsync(out_path, json.dumps(events, ensure_ascii=False).encode('utf-8'), password)
+        from backend.drsync import compute_watermark
+        log_operation('导出同步包', target_type='rows_data',
+                      detail=json.dumps({'events': len(events), 'path': os.path.basename(out_path)}, ensure_ascii=False))
+        return jsonify({
+            'message': '同步包已导出（已加密）',
+            'filename': os.path.basename(out_path),
+            'events': len(events),
+            'watermark': compute_watermark(events),
+        }), 201
+    except SyncError as e:
+        return jsonify({'error': f'同步包加密失败: {e}'}), 500
+
+@app.route('/api/sync/import', methods=['POST'])
+def api_sync_import():
+    """
+    导入 .drsync 同步包（multipart 上传 file 字段）。
+
+    口令只在解密时于内存使用；包先过解密校验才入库，
+    主键 upsert 新者胜、rows_data 字段级合并（Phase 4 语义）。
+    """
+    user_id = session.get('user_id')
+    if not user_id: return jsonify({'error': '请先登录'}), 401
+    if not user_has_permission(user_id, 'reset_database'):
+        return jsonify({'error': '权限不足（需 reset_database）'}), 403
+    g.current_user_id = user_id; g.current_username = session.get('username', ''); g.current_role = session.get('role', '')
+    from backend.drsync import read_drsync, import_events, SyncError
+
+    file = request.files.get('file')
+    if not file or not file.filename:
+        return jsonify({'error': '请选择 .drsync 文件'}), 400
+    password = request.form.get('password') or ''
+    if not password:
+        return jsonify({'error': '请提供解密口令'}), 400
+
+    blob = file.read()
+    try:
+        plain = read_drsync_bytes_checked(blob, password)
+    except SyncError as e:
+        # 口令错误 / 包损坏：明确拒绝，绝不把半截数据写进库
+        return jsonify({'error': f'同步包校验失败: {e}'}), 400
+    try:
+        events = json.loads(plain.decode('utf-8'))
+    except (ValueError, UnicodeDecodeError):
+        return jsonify({'error': '同步包内容不是合法 JSON'}), 400
+    db = get_db()
+    stats = import_events(db, events, source_node='api-upload')
+    log_operation('导入同步包', target_type='rows_data', detail=json.dumps(
+        {'total': stats.get('total', 0), 'inserted': stats.get('inserted', 0), 'updated': stats.get('updated', 0)},
+        ensure_ascii=False))
+    return jsonify({'message': '同步包已导入', 'stats': stats})
+
+def read_drsync_bytes_checked(blob: bytes, password: str) -> bytes:
+    """内存版解密校验：等价 read_drsync 但不落盘（收到的包只在内存处理）"""
+    from backend.drsync.crypto import unpack_bytes, SyncError
+
+    return unpack_bytes(blob, password)
+
+@app.route('/api/sync/peers', methods=['GET'])
+def api_sync_peers():
+    """列出当前局域网内发现的 P2P 节点（Phase 4 可选增强；未开节点时返回空 + listening=false）"""
+    if not session.get('user_id'): return jsonify({'error': '请先登录'}), 401
+    if not user_has_permission(session['user_id'], 'reset_database'):
+        return jsonify({'error': '权限不足（需 reset_database）'}), 403
+    try:
+        from backend.drsync.node import scan_peers
+        peers, listening = scan_peers(timeout=2.0)
+        return jsonify({'peers': peers, 'listening': listening})
+    except Exception as e:
+        # P2P 是可选增强，任何失败都降级为「无邻居」，不影响主功能
+        return jsonify({'peers': [], 'listening': False, 'note': str(e)})
 
 @app.route('/api/settings', methods=['GET'])
 def api_settings():
@@ -1889,58 +2171,63 @@ def ai_analyze():
         current_username = g.current_username or session.get('username', '')
         total_rows = 0
         try:
-            if can_view_all_rows(current_role):
-                result = adapter.fetch_one("SELECT COUNT(*) as cnt FROM rows_data")
-            else:
-                result = adapter.fetch_one("SELECT COUNT(*) as cnt FROM rows_data WHERE _created_by = ?", (current_username,))
-            total_rows = result['cnt'] if result else 0
+            total_rows = RowStore(adapter).count_rows(
+                "" if can_view_all_rows(current_role) else "created_by = ?",
+                () if can_view_all_rows(current_role) else (current_username,),
+            )
         except Exception:
             total_rows = 0
 
         # ── 3. 字段统计 ──
         field_stats = []
         if columns:
+            store = RowStore(adapter)
             for col in columns:
                 col_name = col.get('name', '')
                 col_label = col.get('label', col_name)
                 col_type = col.get('field_type', 'text')
                 if not col_name:
                     continue
+                col_def = {'name': col_name, 'label': col_label, 'field_type': col_type}
                 try:
                     if can_view_all_rows(current_role):
-                        rows = adapter.fetch_all(
-                            f"SELECT {col_name} as val FROM rows_data LIMIT 1000"
-                        )
+                        values = store.fetch_column_values(col_def)
                     else:
-                        rows = adapter.fetch_all(
-                            f"SELECT {col_name} as val FROM rows_data WHERE _created_by = ? LIMIT 1000",
-                            (current_username,),
-                        )
-                    if rows:
-                        values = [r['val'] for r in rows if r.get('val') is not None]
-                        stats = {
-                            "总记录数": len(rows),
-                            "有值记录数": len(values),
-                            "空值率": f"{round((1 - len(values) / len(rows)) * 100, 1)}%" if rows else "0%",
-                        }
-                        if col_type in ('number',):
-                            nums = [float(v) for v in values if v is not None]
-                            if nums:
-                                stats["最小值"] = min(nums)
-                                stats["最大值"] = max(nums)
-                                stats["平均值"] = round(sum(nums) / len(nums), 2)
-                        elif col_type in ('select',):
-                            counter = Counter([str(v) for v in values])
-                            stats["分布"] = dict(counter.most_common(10))
-                        field_stats.append({
-                            "key": col_name,
-                            "label": col_label,
-                            "type": col_type,
-                            "stats": stats,
-                        })
+                        values = store.fetch_column_values(
+                            col_def, "created_by = ?", (current_username,))
+                    total_seen = store.count_rows(
+                        "" if can_view_all_rows(current_role) else "created_by = ?",
+                        () if can_view_all_rows(current_role) else (current_username,),
+                    )
+                    filled = len(values)
+                    stats = {
+                        "总记录数": total_seen,
+                        "有值记录数": filled,
+                        "非空数": filled,
+                        "空值率": f"{round((1 - filled / total_seen) * 100, 1)}%" if total_seen else "0%",
+                    }
+                    if col_type in ('number',):
+                        nums = [float(v) for v in values if v is not None]
+                        if nums:
+                            stats["最小值"] = min(nums)
+                            stats["最大值"] = max(nums)
+                            stats["平均值"] = round(sum(nums) / len(nums), 2)
+                    elif col_type in ('select',):
+                        counter = Counter([str(v) for v in values])
+                        stats["分布"] = dict(counter.most_common(10))
+                        stats["唯一值数"] = len(counter)
+                        stats["示例值"] = [k for k, _ in counter.most_common(5)]
+                    field_stats.append({
+                        "key": col_name,
+                        "label": col_label,
+                        "type": col_type,
+                        "字段": col_label,
+                        "内部名": col_name,
+                        "统计": stats,
+                    })
                 except Exception:
                     # 字段可能不存在或查询失败，跳过
-                    pass
+                    continue
 
         # ── 4. 审核统计 ──
         audit_stats = {}
@@ -2213,6 +2500,15 @@ def serve_react(path):
 
 # ──────────────────────── 启动 ────────────────────────
 if __name__ == '__main__':
+    # 显式初始化：本进程是入口进程，负责建表/补列/种子账户。
+    # （import 期已不再自动 init_db，见上方「架构修正」注释）
+    try:
+        init_db()
+    except Exception:
+        with open('flask_crash.log', 'a', encoding='utf-8') as f:
+            f.write(f"=== init_db failed at {datetime.now()} ===\n")
+            f.write(traceback.format_exc() + "\n")
+        raise
     try:
         import waitress
         port = 5001

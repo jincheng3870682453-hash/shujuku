@@ -130,9 +130,9 @@ function FileUpload({ value, onChange }: { value: unknown; onChange: (value: str
 function InlineEditCell({
   value, fieldType, fieldOptions, onSave, rowId, fieldKey, readonly,
 }: {
-  value: unknown; rowId: number; fieldKey: string;
+  value: unknown; rowId: string; fieldKey: string;
   fieldType: FieldType; fieldOptions: { label: string; value: string }[] | null;
-  onSave: (rowId: number, fieldKey: string, value: unknown) => void;
+  onSave: (rowId: string, fieldKey: string, value: unknown) => void;
   readonly?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
@@ -332,12 +332,20 @@ function DataTable() {
     },
   });
   const updateRowMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: Record<string, unknown> }) => dataApi.updateRow(id, data),
+    mutationFn: async ({ id, data }: { id: string; data: Record<string, unknown> }) => dataApi.updateRow(id, data),
     onSuccess: (res) => { messageApi.success(res?.message || '保存成功'); queryClient.invalidateQueries({ queryKey: ['rows'] }); },
-    onError: (err: any) => messageApi.error(err?.response?.data?.error || err?.message || '保存失败'),
+    onError: (err: any) => {
+      // Phase 2c 乐观锁：409 = 别人已先改过这一行，必须刷新而不是重试覆盖
+      if (err?.response?.status === 409 || err?.response?.data?.conflict) {
+        messageApi.warning(err?.response?.data?.error || '该行已被他人修改，已为你刷新最新数据');
+        queryClient.invalidateQueries({ queryKey: ['rows'] });
+        return;
+      }
+      messageApi.error(err?.response?.data?.error || err?.message || '保存失败');
+    },
   });
   const deleteRowMutation = useMutation({
-    mutationFn: (id: number) => dataApi.deleteRow(id),
+    mutationFn: (id: string) => dataApi.deleteRow(id),
     onSuccess: () => { messageApi.success('删除成功'); queryClient.invalidateQueries({ queryKey: ['rows'] }); },
     onError: () => messageApi.error('删除失败'),
   });
@@ -353,13 +361,16 @@ function DataTable() {
   });
 
   // ============ 行内编辑（每行独立状态，通过 rowId 区分） ============
-  const handleSaveEdit = useCallback((rowId: number, fieldKey: string, value: unknown) => {
-    if (rowId === -1) {
+  const handleSaveEdit = useCallback((rowId: string, fieldKey: string, value: unknown) => {
+    if (rowId === '__new__') {
       messageApi.warning('无法编辑新增行，请先提交');
       return;
     }
-    updateRowMutation.mutate({ id: rowId, data: { [fieldKey]: value } });
-  }, [updateRowMutation, messageApi]);
+    // Phase 2c 乐观锁：把列表下发时的 updated_at 原样带回，
+    // 服务端发现版本过期会返回 409（由 mutation 的 onError 提示并刷新）
+    const base = allRows.find(r => r.id === rowId)?.updated_at;
+    updateRowMutation.mutate({ id: rowId, data: { [fieldKey]: value, base_updated_at: base } });
+  }, [updateRowMutation, allRows, messageApi]);
 
   // ============ 新增行处理 ============
   const startAdd = useCallback(() => {
@@ -694,7 +705,7 @@ function DataTable() {
                 footer={!isEmployee ? () => (
                   isAdding ? (
                     <Table
-                      dataSource={[{ id: -1, ...newRowDataRef.current }]}
+                      dataSource={[{ id: '__new__', ...newRowDataRef.current }]}
                       rowKey={() => 'new-row'}
                       pagination={false}
                       size="small"

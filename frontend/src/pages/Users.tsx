@@ -157,7 +157,7 @@ function Users() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data: payload }: { id: number; data: Partial<UserFormValues> }) =>
+    mutationFn: ({ id, data: payload }: { id: string; data: Partial<UserFormValues> }) =>
       usersApi.updateUser(id, payload),
     onSuccess: () => {
       messageApi.success('用户更新成功');

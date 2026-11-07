@@ -187,7 +187,7 @@ function Audit() {
 
   // 通过
   const approveMutation = useMutation({
-    mutationFn: (id: number) => auditApi.approve(id),
+    mutationFn: (id: string) => auditApi.approve(id),
     onSuccess: () => {
       messageApi.success('审核通过');
       queryClient.invalidateQueries({ queryKey: ['audit'] });
@@ -199,11 +199,11 @@ function Audit() {
 
   // 驳回 — 使用独立 Modal + state，避免 Modal.confirm 闭包问题
   const [rejectModalVisible, setRejectModalVisible] = useState(false);
-  const [rejectTargetId, setRejectTargetId] = useState<number | null>(null);
+  const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
   const [rejectComment, setRejectComment] = useState('');
 
   const rejectMutation = useMutation({
-    mutationFn: ({ id, comment }: { id: number; comment: string }) => auditApi.reject(id, comment),
+    mutationFn: ({ id, comment }: { id: string; comment: string }) => auditApi.reject(id, comment),
     onSuccess: () => {
       messageApi.success('已驳回');
       setRejectModalVisible(false);
@@ -216,7 +216,7 @@ function Audit() {
     },
   });
 
-  const handleOpenReject = (id: number) => {
+  const handleOpenReject = (id: string) => {
     setRejectTargetId(id);
     setRejectComment('');
     setRejectModalVisible(true);

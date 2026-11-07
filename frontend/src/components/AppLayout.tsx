@@ -31,7 +31,7 @@ const { Content } = Layout;
 const SIDEBAR_COLLAPSED_W = 80;
 
 interface UserInfo {
-  id?: number;
+  id?: string;
   username?: string;
   role?: string;
   permissions?: string[];
