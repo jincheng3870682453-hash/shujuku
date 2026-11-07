@@ -28,6 +28,13 @@ from backend import migrate_jsonb as M
 from backend.row_store import RowStore
 
 LIVE = os.path.join(_ROOT, "data", "app.db")
+if not os.path.exists(LIVE):
+    # 运行环境没有真库（CI / 全新克隆）：退回 phase0 快照
+    _snap = os.path.join(_ROOT, "backups", "phase0", "app.db")
+    if os.path.exists(_snap):
+        LIVE = _snap
+    else:
+        raise SystemExit("找不到真库 data/app.db 或 backups/phase0/app.db，无法做 E2E 比对")
 
 
 def snap(path):

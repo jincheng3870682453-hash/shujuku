@@ -3,36 +3,47 @@ name: Build Electron EXE
 on:
   push:
     branches: [main]
+    paths:
+      - "electron/**"
+      - "frontend/**"
+      - "app.py"
+      - "backend/**"
+      - ".github/workflows/build-exe.yml"
   workflow_dispatch:
+
+concurrency:
+  group: exe-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: windows-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            electron/package-lock.json
 
       - name: Install and build frontend
+        working-directory: frontend
         run: |
-          cd frontend
-          npm install
+          npm ci
           npm run build
 
       - name: Install and build Electron
+        working-directory: electron
         run: |
-          cd electron
-          npm install
+          npm ci
           npm run build
 
       - name: Build EXE
-        run: |
-          cd electron
-          npx electron-builder --win --x64
+        working-directory: electron
+        run: npx electron-builder --win --x64
 
       - name: Upload EXE
         uses: actions/upload-artifact@v4

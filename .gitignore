@@ -1,18 +1,17 @@
-electron/release/ 
-electron/node_modules/ 
-*.exe 
-*.dmg 
-*.pkg 
-*.zip 
-*.tar.gz 
-node_modules/ 
-.env 
-dist/ 
-build/ 
+electron/release/
+electron/node_modules/
+*.exe
+*.dmg
+*.pkg
+*.zip
+*.tar.gz
+node_modules/
+.env
+dist/
+build/
 __pycache__/
 *.pyc
 *.pyo
-data/*.db
 backend/data/
 _server_log.txt
 *.log
@@ -29,17 +28,19 @@ _verify_employee_view.py
 demo.html
 demo/
 registry.db
+*.db-shm
+*.db-wal
+*.db-journal
+dst.db
+pip-unpack-*/
+static/uploads/
+flask_*.log
 
-# 本地 Python 虚拟环境与 Phase 0 临时产物，勿提交
+# 本地 Python 虚拟环境与临时产物，勿提交
 .venv/
 .dsh-tmp/
 .dsh-acl-report/
 
-# 本地数据与临时产物（2026-11 追加）
-dst.db
-pip-unpack-*/
-*.db-shm
-*.db-wal
-static/uploads/
-data/sync/
-data/*.db-journal
+# 本地数据目录：只保留 .gitkeep 占位，真库/同步包/索引不入库
+data/*
+!data/.gitkeep

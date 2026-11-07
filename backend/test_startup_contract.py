@@ -91,16 +91,22 @@ class TestExplicitInit(unittest.TestCase):
     """init_db() 可显式调用，且幂等"""
 
     def test_init_db_is_callable_and_idempotent(self):
+        # 不依赖 data/app.db 可打开：指向临时库（运行环境可能限制读项目 data/，
+        # CI / 沙箱里也根本没有这个库——幂等性本身与库位置无关）
+        tmp_db = os.path.join(tempfile.mkdtemp(prefix="startup_idem_"), "t.db")
         env = dict(os.environ)
         env.pop("REGISTRY_INIT_ON_IMPORT", None)
+        env["REGISTRY_DB_PATH"] = tmp_db
         code = (
             "import sys;sys.path.insert(0, %r);"
+            "from backend import config as cfg, db_adapter as da;"
+            "cfg.SQLITE_PATH = %r; da.SQLITE_PATH = %r;"
             "import app;"
             "app.init_db();"
             "print('FIRST_OK');"
             "app.init_db();"
             "print('SECOND_OK')"
-        ) % PROJECT_ROOT
+        ) % (PROJECT_ROOT, tmp_db, tmp_db)
         r = subprocess.run(
             [sys.executable, "-c", code],
             cwd=PROJECT_ROOT, env=env,

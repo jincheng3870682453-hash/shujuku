@@ -21,6 +21,19 @@ import tempfile
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LIVE = os.path.join(PROJECT_ROOT, "data", "app.db")
+if not os.path.exists(LIVE):
+    # 运行环境没有真库（CI / 全新克隆）：退回 backups/phase0 快照或临时空库
+    _snap = os.path.join(PROJECT_ROOT, "backups", "phase0", "app.db")
+    if os.path.exists(_snap):
+        LIVE = _snap
+    else:
+        LIVE = os.path.join(tempfile.gettempdir(), "api_smoke_seed.db")
+        if not os.path.exists(LIVE):
+            _seed = sqlite3.connect(LIVE)
+            _seed.execute("CREATE TABLE IF NOT EXISTS rows_data (id TEXT PRIMARY KEY, data TEXT NOT NULL DEFAULT '{}', created_by TEXT NOT NULL DEFAULT '', schema_version INTEGER NOT NULL DEFAULT 0, created_at DATETIME, updated_at DATETIME)")
+            _seed.execute("CREATE TABLE IF NOT EXISTS columns_meta (id TEXT PRIMARY KEY, name TEXT UNIQUE NOT NULL, label TEXT NOT NULL, field_type TEXT NOT NULL DEFAULT 'text', options TEXT, position INTEGER DEFAULT 0)")
+            _seed.commit()
+            _seed.close()
 sys.path.insert(0, PROJECT_ROOT)
 
 results = []
@@ -37,12 +50,38 @@ def make_writable_copy(dest):
 
     不用 shutil.copy2：live 库是 WAL 模式，复制 .db 文件不带走 -wal/-shm，
     且继承的权限会让副本变成只读（Phase 0 已见过 backups/ 目录的同类问题）。
+    只读打开失败（沙箱/锁/权限）时退化为普通文件复制——backup API 只是保真手段，
+    快照文件本身不需要 WAL 重放。
     """
-    src = sqlite3.connect(f"file:{LIVE}?mode=ro", uri=True)
-    dst = sqlite3.connect(dest)
-    src.backup(dst)
-    dst.close()
-    src.close()
+    try:
+        src = sqlite3.connect(f"file:{LIVE}?mode=ro", uri=True)
+        dst = sqlite3.connect(dest)
+        src.backup(dst)
+        dst.close()
+        src.close()
+    except sqlite3.Error:
+        # 连接对象可能还占着 dest，先彻底关掉再覆盖
+        try:
+            dst.close()
+        except Exception:
+            pass
+        try:
+            src.close()
+        except Exception:
+            pass
+        import gc
+
+        gc.collect()
+        if os.path.exists(dest):
+            for _ in range(5):
+                try:
+                    os.remove(dest)
+                    break
+                except PermissionError:
+                    import time
+
+                    time.sleep(0.2)
+        shutil.copy2(LIVE, dest)
     return dest
 
 

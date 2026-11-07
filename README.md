@@ -46,9 +46,15 @@ docker compose up -d
 | [docs/立项-存储层重构.md](docs/立项-存储层重构.md) | 存储层重构全程记录：JSONB 选型论证、UUIDv7 主键硬切、乐观锁、同步、检索——含每阶段踩坑与验证证据 |
 | [docs/drsync.md](docs/drsync.md) | 多机同步三种用法、安全模型、端口说明 |
 | [docs/vecsearch.md](docs/vecsearch.md) | 本地检索的定位、局限、换真模型的预留路径 |
+| [docs/更新公告.md](docs/更新公告.md) | 版本更新公告 |
+| [docs/架构图.md](docs/架构图.md) | 完整架构图 / ER 图 |
+| [docs/项目亮点.md](docs/项目亮点.md) | 项目亮点汇总 |
 | [docs/PPT白皮书资料包_v6.0.md](docs/PPT白皮书资料包_v6.0.md) | 汇报/白皮书素材 |
-| [项目亮点_v6.0.md](项目亮点_v6.0.md) | 项目亮点汇总 |
+| [docs/legal/](docs/legal/) | 用户协议 / 隐私政策 |
+| [docs/archive/](docs/archive/) | 历史文档归档（旧版亮点、开发日志、对话记录） |
+| [docs/design-demos/](docs/design-demos/) | UI 设计方向草案 |
 | [scripts/](scripts/) | 冒烟测试 / 全新部署验证 / 迁移 E2E / 基线校验 / drsync CLI |
+| [scripts/dev/](scripts/dev/) | 开发期一次性调试脚本归档 |
 
 <details>
 <summary><b>架构速览（点开）</b></summary>

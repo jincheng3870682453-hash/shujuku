@@ -1,9 +1,13 @@
 name: Build & Export Docker Image
 
 on:
-  push:
-    branches: [main]
+  # 手动触发为主：CI 已覆盖每次 push 的镜像构建与健康检查（ci.yml docker job），
+  # 这里只做「导出 tar.gz 产物」——大文件没必要每次 push 都跑
   workflow_dispatch:
+
+concurrency:
+  group: image-export-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   export:
@@ -21,6 +25,8 @@ jobs:
           context: .
           load: true
           tags: shujuku:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Export to tar.gz
         run: |

@@ -410,24 +410,35 @@ class TestFactory(unittest.TestCase):
     """get_adapter 工厂函数测试"""
 
     def setUp(self):
+        from backend import config as cfg
+
+        self._cfg = cfg
+        self._orig_engine = cfg.DB_ENGINE
+        self._orig_path = cfg.SQLITE_PATH
         reset_adapter()
 
     def tearDown(self):
+        self._cfg.DB_ENGINE = self._orig_engine
+        self._cfg.SQLITE_PATH = self._orig_path
         reset_adapter()
 
     def test_get_adapter_returns_sqlite_by_default(self):
-        """默认配置应返回 SQLiteAdapter"""
-        # 临时设置环境变量
-        os.environ["DB_ENGINE"] = "sqlite"
-        os.environ["SQLITE_PATH"] = ":memory:"
+        """默认配置应返回 SQLiteAdapter
+
+        直接改 config 模块属性（而非 os.environ）：config 的环境变量在
+        import 时已固化为模块常量，改 env 不会生效（这是曾经的隐患——
+        这两个测试过去只是碰巧靠默认路径可打开才通过）。
+        """
+        self._cfg.DB_ENGINE = "sqlite"
+        self._cfg.SQLITE_PATH = ":memory:"
         reset_adapter()
         adapter = get_adapter()
         self.assertIsInstance(adapter, SQLiteAdapter)
 
     def test_get_adapter_returns_independent_instances(self):
         """多次调用 get_adapter 应返回独立实例（工厂模式，非单例）"""
-        os.environ["DB_ENGINE"] = "sqlite"
-        os.environ["SQLITE_PATH"] = ":memory:"
+        self._cfg.DB_ENGINE = "sqlite"
+        self._cfg.SQLITE_PATH = ":memory:"
         reset_adapter()
         a1 = get_adapter()
         a2 = get_adapter()
